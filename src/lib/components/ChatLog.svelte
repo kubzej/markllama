@@ -4,7 +4,6 @@
 	import { conversationState, type AttachedFile } from '$lib/stores/conversation.svelte';
 	import { projectState } from '$lib/stores/project.svelte';
 	import { chatsState } from '$lib/stores/chats.svelte';
-	import { switchActiveFile } from '$lib/actions/fileActions';
 	import { pickImages, readImageBase64, readDocument } from '$lib/tauri/fs';
 	import { getModelInfo } from '$lib/tauri/ollama';
 	import { mimeTypeForPath, toDataUrl, type ImageAttachment } from '$lib/images';
@@ -20,9 +19,9 @@
 	let instruction = $state('');
 	let attachedImages = $state<ImageAttachment[]>([]);
 	let attachedFiles = $state<AttachedFileChip[]>([]);
-	/** Project mode only — a one-shot arm set by picking a target file (`handleWriteTargetSelect`),
-	 *  cleared again after the next Send. */
-	let writeTarget = $state<{ path: string; name: string } | null>(null);
+	/** Project mode write is a one-shot mode targeting the currently active document. It resets
+	 *  after Send; single-file write mode is persistent because there is only one possible target. */
+	let projectWriteMode = $state(false);
 	/** Single-file mode only — a persistent toggle (there's only ever one possible target, the
 	 *  one open document, so there's nothing to "pick" per message) defaulting to on, matching
 	 *  this mode's original behavior of every Send being an edit. */
@@ -34,9 +33,6 @@
 	let chatMenuRootEl: HTMLDivElement | undefined = $state(undefined);
 	let attachFileMenuOpen = $state(false);
 	let attachFileMenuRootEl: HTMLDivElement | undefined = $state(undefined);
-	let writeMenuOpen = $state(false);
-	let writeMenuRootEl: HTMLDivElement | undefined = $state(undefined);
-
 	let modelMaxContext = $state<number | null>(null);
 
 	// Neither a project nor a single document is open — there is nothing to write to and nothing
@@ -57,16 +53,14 @@
 		chatsState.chats.find((chat) => chat.id === chatsState.activeChatId)?.title ?? 'New chat'
 	);
 
-	/** The file this send would write to, if any — `writeTarget` in project mode, or the single
-	 *  open document when `singleFileWriteMode` is on in single-file mode. `null` means a plain
-	 *  chat turn. */
+	/** The file this send would write to, if any. In both project and single-file mode, write mode
+	 *  targets the currently active document; project mode simply resets after the next Send. */
 	const effectiveWriteTarget = $derived(
-		projectState.isOpen
-			? writeTarget
-			: singleFileWriteMode && documentState.path
-				? { path: documentState.path, name: documentState.filename }
-				: null
+		documentState.path && (projectState.isOpen ? projectWriteMode : singleFileWriteMode)
+			? { path: documentState.path, name: documentState.filename }
+			: null
 	);
+	const writeModeActive = $derived(Boolean(effectiveWriteTarget));
 
 	// Rough chars-per-token≈4 heuristic — there's no tokenizer available client-side. Covers prior
 	// turns' text, the active document (always in scope) and any extra attached files' content,
@@ -142,11 +136,6 @@
 		if (!model || !text) return;
 
 		const target = effectiveWriteTarget;
-		if (target && target.path !== documentState.path) {
-			await switchActiveFile(target.path);
-			if (documentState.path !== target.path) return; // switch guard cancelled — keep the draft
-		}
-
 		const images = attachedImages;
 		const files = gatherCandidateFiles(target?.path ?? null);
 		const numCtx = sessionState.getNumCtxOverride(model);
@@ -154,7 +143,7 @@
 		instruction = '';
 		attachedImages = [];
 		attachedFiles = [];
-		writeTarget = null; // only the one-shot project-mode arm resets — singleFileWriteMode persists
+		if (projectState.isOpen) projectWriteMode = false;
 		resizeTextarea();
 
 		if (target) {
@@ -201,15 +190,13 @@
 		chatMenuOpen = false;
 	}
 
-	/** Picking a target only arms it — it switches to that document (same guarded flow as clicking
-	 *  it in the sidebar) so it's visible for review, but generation only happens once the user
-	 *  actually hits Send with their instruction; see `handleSendChat`. */
-	async function handleWriteTargetSelect(file: { path: string; name: string }) {
-		if (file.path !== documentState.path) {
-			await switchActiveFile(file.path);
-			if (documentState.path !== file.path) return; // the switch guard was cancelled
+	function toggleWriteMode() {
+		if (!documentState.path) return;
+		if (projectState.isOpen) {
+			projectWriteMode = !projectWriteMode;
+		} else {
+			singleFileWriteMode = !singleFileWriteMode;
 		}
-		writeTarget = file;
 		textareaEl?.focus();
 	}
 
@@ -266,9 +253,6 @@
 		if (chatMenuOpen && chatMenuRootEl && !chatMenuRootEl.contains(target)) chatMenuOpen = false;
 		if (attachFileMenuOpen && attachFileMenuRootEl && !attachFileMenuRootEl.contains(target)) {
 			attachFileMenuOpen = false;
-		}
-		if (writeMenuOpen && writeMenuRootEl && !writeMenuRootEl.contains(target)) {
-			writeMenuOpen = false;
 		}
 	}
 
@@ -490,7 +474,7 @@
 			class="app-panel-footer relative flex flex-wrap items-center gap-1.5 px-2.5 py-2.5"
 			bind:this={attachFileMenuRootEl}
 		>
-			{#if documentState.path && !writeTarget}
+			{#if documentState.path && !writeModeActive}
 				<span
 					title="Always included automatically — the currently active document"
 					class="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent dark:bg-accent/15"
@@ -573,84 +557,17 @@
 		</div>
 	{/if}
 
-	{#if projectState.isOpen}
-		<div
-			class="app-panel-footer relative flex items-center gap-2 px-2.5 py-2"
-			bind:this={writeMenuRootEl}
-		>
-			{#if writeTarget}
-				<span
-					class="flex items-center gap-1.5 rounded-lg bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent ring-1 ring-accent/25 ring-inset dark:bg-accent/15"
-				>
-					<svg
-						viewBox="0 0 24 24"
-						class="size-3.5 shrink-0"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.8"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-					>
-						<path d="M12 20h9" />
-						<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-					</svg>
-					Writing to {writeTarget.name}
-					<button
-						type="button"
-						title="Cancel"
-						aria-label="Cancel writing to {writeTarget.name}"
-						onclick={() => (writeTarget = null)}
-						class="shrink-0 text-accent/70 hover:text-accent"
-					>
-						<svg
-							viewBox="0 0 24 24"
-							class="size-3"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2.5"
-							stroke-linecap="round"
-						>
-							<path d="M18 6 6 18M6 6l12 12" />
-						</svg>
-					</button>
-				</span>
-			{:else}
-				<button
-					type="button"
-					disabled={sendDisabled}
-					onclick={() => (writeMenuOpen = !writeMenuOpen)}
-					class="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] ring-1 ring-[var(--surface-ring)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
-				>
-					<svg
-						viewBox="0 0 24 24"
-						class="size-3.5 shrink-0"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.8"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-					>
-						<path d="M12 20h9" />
-						<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-					</svg>
-					Write to document…
-				</button>
-			{/if}
-			<FileListPicker bind:open={writeMenuOpen} onSelect={handleWriteTargetSelect} />
-		</div>
-	{/if}
-
-	{#if !projectState.isOpen && documentState.path}
+	{#if documentState.path}
 		<div class="app-panel-footer flex items-center gap-2 px-2.5 py-2">
 			<button
 				type="button"
 				role="switch"
-				aria-checked={singleFileWriteMode}
-				title={singleFileWriteMode
+				aria-checked={writeModeActive}
+				title={writeModeActive
 					? 'Writing mode — Send will propose changes to this document. Click to just chat instead.'
 					: 'Chat mode — Send will just discuss. Click to write to this document instead.'}
-				onclick={() => (singleFileWriteMode = !singleFileWriteMode)}
-				class="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium ring-1 transition-colors duration-150 {singleFileWriteMode
+				onclick={toggleWriteMode}
+				class="flex min-w-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium ring-1 transition-colors duration-150 {writeModeActive
 					? 'bg-accent/10 text-accent ring-accent/25 dark:bg-accent/15'
 					: 'text-[var(--text-secondary)] ring-[var(--surface-ring)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]'}"
 			>
@@ -666,7 +583,11 @@
 					<path d="M12 20h9" />
 					<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
 				</svg>
-				{singleFileWriteMode ? `Writing to ${documentState.filename}` : 'Write to document'}
+				<span class="min-w-0 truncate">
+					{writeModeActive
+						? `Writing to ${documentState.filename}`
+						: `Write to ${documentState.filename}`}
+				</span>
 			</button>
 		</div>
 	{/if}

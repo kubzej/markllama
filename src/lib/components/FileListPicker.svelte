@@ -35,7 +35,7 @@
 
 {#if open}
 	<div
-		class="app-popover absolute top-full left-0 z-50 mt-1 max-h-64 w-64 overflow-y-auto rounded-xl p-1"
+		class="app-popover absolute bottom-full left-0 z-[90] mb-1 max-h-64 w-64 overflow-y-auto rounded-xl p-1"
 	>
 		{#if files.length === 0}
 			<p class="px-2.5 py-1.5 text-xs text-[var(--text-muted)]">{emptyLabel}</p>

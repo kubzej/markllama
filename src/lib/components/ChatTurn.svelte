@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ConversationTurn } from '$lib/stores/conversation.svelte';
 	import { sessionState } from '$lib/stores/session.svelte';
+	import { toDataUrl } from '$lib/images';
 
 	let { turn }: { turn: ConversationTurn } = $props();
 
@@ -41,6 +42,17 @@
 	);
 </script>
 
+{#if turn.images.length > 0}
+	<div class="flex justify-end gap-1.5">
+		{#each turn.images as image, index (index)}
+			<img
+				src={toDataUrl(image)}
+				alt="Attached"
+				class="size-14 rounded-lg object-cover ring-1 ring-neutral-200/70 dark:ring-white/10"
+			/>
+		{/each}
+	</div>
+{/if}
 <div class="flex justify-end">
 	<div class="max-w-[85%] rounded-2xl bg-accent px-3 py-2 text-sm text-white">
 		{turn.instruction}

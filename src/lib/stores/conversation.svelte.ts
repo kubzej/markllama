@@ -1,5 +1,6 @@
 import { generateEdit, cancelGeneration } from '$lib/tauri/ollama';
 import { diffDocuments, type DiffLine } from '$lib/tauri/diff';
+import type { ImageAttachment } from '$lib/images';
 
 export type TurnStatus =
 	| 'generating'
@@ -13,6 +14,8 @@ export interface ConversationTurn {
 	id: string;
 	model: string;
 	instruction: string;
+	/** Display-only, exactly like `instruction` — never read back into a request. */
+	images: ImageAttachment[];
 	thinkingText: string;
 	/**
 	 * Running character count of the streamed answer. The raw answer text itself isn't shown in
@@ -61,6 +64,7 @@ function createConversationState() {
 		model: string,
 		markdown: string,
 		instruction: string,
+		images: ImageAttachment[],
 		thinking: boolean,
 		webSearch: boolean
 	): Promise<void> {
@@ -68,6 +72,7 @@ function createConversationState() {
 			id: crypto.randomUUID(),
 			model,
 			instruction,
+			images,
 			thinkingText: '',
 			answerLength: 0,
 			status: 'generating',
@@ -86,6 +91,7 @@ function createConversationState() {
 				model,
 				markdown,
 				instruction,
+				images.map((image) => image.base64),
 				thinking,
 				webSearch,
 				(chunk) => {

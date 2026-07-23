@@ -13,6 +13,9 @@
 //! If a future change needs the model to see more than "current doc + current instruction",
 //! that is an explicit, user-approved architecture change, not something to slip in while
 //! adding an unrelated feature. Ask first.
+//!
+//! Attached images follow the same rule: they belong to the current turn's request only, exactly
+//! like the instruction text — never accumulated or carried over from a previous turn.
 
 use serde::Serialize;
 
@@ -26,6 +29,8 @@ does not ask you to change.";
 pub struct ChatMessage {
     pub role: &'static str,
     pub content: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -42,6 +47,7 @@ pub fn build_edit_request(
     model: String,
     markdown: &str,
     instruction: &str,
+    images: Vec<String>,
     thinking: bool,
     web_context: Option<&str>,
 ) -> ChatRequest {
@@ -58,10 +64,12 @@ pub fn build_edit_request(
             ChatMessage {
                 role: "system",
                 content: SYSTEM_PROMPT.to_string(),
+                images: Vec::new(),
             },
             ChatMessage {
                 role: "user",
                 content: user_content,
+                images,
             },
         ],
         stream: true,
@@ -83,6 +91,7 @@ mod tests {
             "qwen3.5:9b".to_string(),
             "# Doc",
             "do something",
+            Vec::new(),
             false,
             None,
         );
@@ -105,6 +114,7 @@ mod tests {
             "qwen3.5:9b".to_string(),
             "# First document",
             "first instruction",
+            Vec::new(),
             false,
             None,
         );
@@ -112,6 +122,7 @@ mod tests {
             "qwen3.5:9b".to_string(),
             "# Second document",
             "second instruction",
+            Vec::new(),
             false,
             None,
         );
@@ -125,5 +136,22 @@ mod tests {
         // The first call's own request is untouched by the second call (no shared mutable state).
         assert!(first.messages[1].content.contains("first instruction"));
         assert!(!first.messages[1].content.contains("second instruction"));
+    }
+
+    /// Attached images ride along with the current turn's request only, same as the
+    /// instruction — they must land on the user message, never on the system message.
+    #[test]
+    fn images_attach_only_to_the_user_message() {
+        let request = build_edit_request(
+            "qwen3.5:9b".to_string(),
+            "# Doc",
+            "describe this image",
+            vec!["base64data".to_string()],
+            false,
+            None,
+        );
+
+        assert!(request.messages[0].images.is_empty());
+        assert_eq!(request.messages[1].images, vec!["base64data".to_string()]);
     }
 }

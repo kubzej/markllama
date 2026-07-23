@@ -3,13 +3,19 @@
 	import { sessionState } from '$lib/stores/session.svelte';
 	import { conversationState } from '$lib/stores/conversation.svelte';
 	import { projectState } from '$lib/stores/project.svelte';
+	import { pickImages, readImageBase64 } from '$lib/tauri/fs';
+	import { mimeTypeForPath, toDataUrl, type ImageAttachment } from '$lib/images';
 	import ChatTurn from './ChatTurn.svelte';
 
 	let instruction = $state('');
+	let attachedImages = $state<ImageAttachment[]>([]);
 	let textareaEl: HTMLTextAreaElement;
 	let scrollEl: HTMLDivElement;
 
 	const noFileSelected = $derived(projectState.isOpen && !documentState.path);
+	const attachDisabled = $derived(
+		!sessionState.modelSupportsVision || sessionState.status !== 'connected' || noFileSelected
+	);
 
 	const sendDisabled = $derived(
 		sessionState.status !== 'connected' ||
@@ -28,16 +34,35 @@
 		const model = sessionState.selectedModel;
 		const text = instruction.trim();
 		if (!model || !text) return;
+		const images = attachedImages;
 		instruction = '';
+		attachedImages = [];
 		resizeTextarea();
 		await conversationState.run(
 			model,
 			documentState.content,
 			text,
+			images,
 			sessionState.thinkingEnabled,
 			sessionState.webSearchEnabled
 		);
 	}
+
+	async function addImages() {
+		const paths = await pickImages();
+		for (const path of paths) {
+			const base64 = await readImageBase64(path);
+			attachedImages = [...attachedImages, { base64, mimeType: mimeTypeForPath(path) }];
+		}
+	}
+
+	function removeImage(index: number) {
+		attachedImages = attachedImages.filter((_, i) => i !== index);
+	}
+
+	$effect(() => {
+		if (!sessionState.modelSupportsVision && attachedImages.length > 0) attachedImages = [];
+	});
 
 	function handleButtonClick() {
 		if (conversationState.isGenerating) {
@@ -98,7 +123,45 @@
 		</div>
 	</div>
 
+	{#if attachedImages.length > 0}
+		<div class="flex flex-wrap gap-1.5 border-t border-neutral-200/70 px-2.5 py-2.5 dark:border-white/[0.06]">
+			{#each attachedImages as image, index (index)}
+				<div class="relative">
+					<img
+						src={toDataUrl(image)}
+						alt="Attached"
+						class="size-12 rounded-md object-cover ring-1 ring-neutral-200/70 dark:ring-white/10"
+					/>
+					<button
+						title="Remove"
+						onclick={() => removeImage(index)}
+						class="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-neutral-700 text-white hover:bg-neutral-600 dark:bg-neutral-500 dark:hover:bg-neutral-400"
+					>
+						<svg viewBox="0 0 24 24" class="size-2.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+							<path d="M18 6 6 18M6 6l12 12" />
+						</svg>
+					</button>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
 	<div class="flex items-end gap-2 border-t border-neutral-200/70 p-2.5 dark:border-white/[0.06]">
+		<button
+			type="button"
+			title={sessionState.modelSupportsVision
+				? 'Attach an image'
+				: 'This model does not support vision'}
+			disabled={attachDisabled}
+			onclick={addImages}
+			class="flex shrink-0 items-center rounded-xl p-2 text-neutral-500 transition-colors duration-150 hover:bg-neutral-900/5 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
+		>
+			<svg viewBox="0 0 24 24" class="size-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+				<rect x="3" y="4" width="18" height="16" rx="2" />
+				<circle cx="9" cy="10" r="1.5" fill="currentColor" stroke="none" />
+				<path d="M21 16l-5.5-5.5a2 2 0 0 0-2.8 0L4 19" />
+			</svg>
+		</button>
 		<textarea
 			bind:this={textareaEl}
 			bind:value={instruction}

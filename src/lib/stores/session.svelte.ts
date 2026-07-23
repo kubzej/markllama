@@ -1,4 +1,10 @@
-import { detectOllama, listOllamaModels, supportsThinking, type OllamaModel } from '$lib/tauri/ollama';
+import {
+	detectOllama,
+	listOllamaModels,
+	supportsThinking,
+	supportsVision,
+	type OllamaModel
+} from '$lib/tauri/ollama';
 import { getSettings, setSettings, hasWebSearchApiKey, type ModelNote } from '$lib/tauri/settings';
 
 export type OllamaStatus = 'checking' | 'connected' | 'disconnected';
@@ -9,6 +15,7 @@ function createSessionState() {
 	let models = $state<OllamaModel[]>([]);
 	let selectedModel = $state<string | null>(null);
 	let modelSupportsThinking = $state(false);
+	let modelSupportsVision = $state(false);
 	let thinkingEnabled = $state(false);
 	let hasApiKey = $state(false);
 	let webSearchEnabled = $state(false);
@@ -92,6 +99,18 @@ function createSessionState() {
 		if (!modelSupportsThinking) thinkingEnabled = false;
 	}
 
+	async function refreshVisionSupport() {
+		if (!selectedModel) {
+			modelSupportsVision = false;
+			return;
+		}
+		try {
+			modelSupportsVision = await supportsVision(selectedModel);
+		} catch {
+			modelSupportsVision = false;
+		}
+	}
+
 	async function refresh() {
 		const connected = await detectOllama();
 		status = connected ? 'connected' : 'disconnected';
@@ -114,6 +133,7 @@ function createSessionState() {
 		}
 
 		await refreshThinkingSupport();
+		await refreshVisionSupport();
 		await refreshApiKeyStatus();
 	}
 
@@ -130,10 +150,14 @@ function createSessionState() {
 		set selectedModel(name: string | null) {
 			selectedModel = name;
 			void refreshThinkingSupport();
+			void refreshVisionSupport();
 			persistPreferences();
 		},
 		get modelSupportsThinking() {
 			return modelSupportsThinking;
+		},
+		get modelSupportsVision() {
+			return modelSupportsVision;
 		},
 		get thinkingEnabled() {
 			return thinkingEnabled;

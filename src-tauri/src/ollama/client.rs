@@ -156,7 +156,27 @@ impl OllamaClient {
         Ok(show.capabilities.iter().any(|cap| cap == "thinking"))
     }
 
-    /// Sends the single-turn `{ system, markdown, instruction }` request and streams the
+    /// Whether the model advertises the `vision` capability via `/api/show` — gates whether the
+    /// UI lets the user attach images to a turn at all.
+    pub async fn supports_vision(&self, model: &str) -> Result<bool, String> {
+        let response = self
+            .http
+            .post(format!("{OLLAMA_BASE_URL}/api/show"))
+            .json(&serde_json::json!({ "model": model }))
+            .timeout(QUICK_REQUEST_TIMEOUT)
+            .send()
+            .await
+            .map_err(|err| format!("Could not reach Ollama: {err}"))?;
+
+        let show: ShowResponse = response
+            .json()
+            .await
+            .map_err(|err| format!("Unexpected response from Ollama: {err}"))?;
+
+        Ok(show.capabilities.iter().any(|cap| cap == "vision"))
+    }
+
+    /// Sends the single-turn `{ system, markdown, instruction, images }` request and streams the
     /// response as `generation:chunk` (and, when `thinking` is enabled, `generation:thinking`)
     /// events. Returns the full assembled answer text once Ollama reports `done` — the thinking
     /// trace is never included in the returned text.
@@ -166,6 +186,7 @@ impl OllamaClient {
         model: String,
         markdown: &str,
         instruction: &str,
+        images: Vec<String>,
         thinking: bool,
         web_search_enabled: bool,
     ) -> Result<String, String> {
@@ -178,6 +199,7 @@ impl OllamaClient {
                 model,
                 markdown,
                 instruction,
+                images,
                 thinking,
                 web_search_enabled,
                 &cancel,
@@ -196,6 +218,7 @@ impl OllamaClient {
         model: String,
         markdown: &str,
         instruction: &str,
+        images: Vec<String>,
         thinking: bool,
         web_search_enabled: bool,
         cancel: &Arc<AtomicBool>,
@@ -211,8 +234,14 @@ impl OllamaClient {
             None
         };
 
-        let request =
-            build_edit_request(model, markdown, instruction, thinking, web_context.as_deref());
+        let request = build_edit_request(
+            model,
+            markdown,
+            instruction,
+            images,
+            thinking,
+            web_context.as_deref(),
+        );
 
         let response = self
             .http
@@ -289,6 +318,14 @@ pub async fn ollama_supports_thinking(
 }
 
 #[tauri::command]
+pub async fn ollama_supports_vision(
+    client: tauri::State<'_, OllamaClient>,
+    model: String,
+) -> Result<bool, String> {
+    client.supports_vision(&model).await
+}
+
+#[tauri::command]
 pub fn cancel_generation(client: tauri::State<'_, OllamaClient>) {
     client.cancel_generation();
 }
@@ -300,11 +337,20 @@ pub async fn generate_edit(
     model: String,
     markdown: String,
     instruction: String,
+    images: Vec<String>,
     thinking: bool,
     web_search: bool,
 ) -> Result<String, String> {
     client
-        .generate_edit(&app, model, &markdown, &instruction, thinking, web_search)
+        .generate_edit(
+            &app,
+            model,
+            &markdown,
+            &instruction,
+            images,
+            thinking,
+            web_search,
+        )
         .await
 }
 

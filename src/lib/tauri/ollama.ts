@@ -17,6 +17,10 @@ export async function supportsThinking(model: string): Promise<boolean> {
 	return invoke<boolean>('ollama_supports_thinking', { model });
 }
 
+export async function supportsVision(model: string): Promise<boolean> {
+	return invoke<boolean>('ollama_supports_vision', { model });
+}
+
 export async function cancelGeneration(): Promise<void> {
 	await invoke('cancel_generation');
 }
@@ -25,6 +29,7 @@ export async function generateEdit(
 	model: string,
 	markdown: string,
 	instruction: string,
+	images: string[],
 	thinking: boolean,
 	webSearch: boolean,
 	onChunk: (chunk: string) => void,
@@ -41,6 +46,7 @@ export async function generateEdit(
 			model,
 			markdown,
 			instruction,
+			images,
 			thinking,
 			webSearch
 		});

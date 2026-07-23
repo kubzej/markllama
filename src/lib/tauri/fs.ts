@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 
 const MARKDOWN_FILTER = { name: 'Markdown', extensions: ['md', 'markdown'] };
+const IMAGE_FILTER = { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] };
 
 export interface OpenedDocument {
 	path: string;
@@ -22,6 +23,16 @@ export async function pickFolder(): Promise<string | null> {
 
 export async function readDocument(path: string): Promise<string> {
 	return invoke<string>('read_document', { path });
+}
+
+export async function pickImages(): Promise<string[]> {
+	const selected = await open({ multiple: true, filters: [IMAGE_FILTER] });
+	if (!selected) return [];
+	return Array.isArray(selected) ? selected : [selected];
+}
+
+export async function readImageBase64(path: string): Promise<string> {
+	return invoke<string>('read_image_base64', { path });
 }
 
 export async function writeDocument(path: string, content: string): Promise<void> {

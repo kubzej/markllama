@@ -11,8 +11,17 @@ export interface OpenedDocument {
 export async function pickAndOpenDocument(): Promise<OpenedDocument | null> {
 	const selected = await open({ multiple: false, filters: [MARKDOWN_FILTER] });
 	if (!selected || Array.isArray(selected)) return null;
-	const content = await invoke<string>('read_document', { path: selected });
+	const content = await readDocument(selected);
 	return { path: selected, content };
+}
+
+export async function pickFolder(): Promise<string | null> {
+	const selected = await open({ directory: true, multiple: false });
+	return typeof selected === 'string' ? selected : null;
+}
+
+export async function readDocument(path: string): Promise<string> {
+	return invoke<string>('read_document', { path });
 }
 
 export async function writeDocument(path: string, content: string): Promise<void> {

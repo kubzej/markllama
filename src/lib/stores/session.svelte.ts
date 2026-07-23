@@ -59,6 +59,25 @@ function createSessionState() {
 		persistPreferences();
 	}
 
+	/**
+	 * Drops notes for models that no longer exist in Ollama (e.g. `ollama rm`'d) so deleting a
+	 * model also cleans up its alias/description rather than leaving it orphaned in settings.json
+	 * forever. Only called with a freshly, successfully fetched model list — never on a failed
+	 * fetch or a disconnected Ollama, since that would otherwise wipe every note just because the
+	 * service was briefly unreachable.
+	 */
+	function pruneOrphanedNotes(currentModels: OllamaModel[]) {
+		const validNames = new Set(currentModels.map((model) => model.name));
+		const hasOrphan = Object.keys(modelNotes).some((name) => !validNames.has(name));
+		if (!hasOrphan) return;
+		const pruned: Record<string, ModelNote> = {};
+		for (const [name, note] of Object.entries(modelNotes)) {
+			if (validNames.has(name)) pruned[name] = note;
+		}
+		modelNotes = pruned;
+		persistPreferences();
+	}
+
 	async function refreshThinkingSupport() {
 		if (!selectedModel) {
 			modelSupportsThinking = false;
@@ -84,6 +103,7 @@ function createSessionState() {
 
 		try {
 			models = await listOllamaModels();
+			pruneOrphanedNotes(models);
 		} catch {
 			models = [];
 		}

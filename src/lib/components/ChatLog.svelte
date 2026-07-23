@@ -2,14 +2,20 @@
 	import { documentState } from '$lib/stores/document.svelte';
 	import { sessionState } from '$lib/stores/session.svelte';
 	import { conversationState } from '$lib/stores/conversation.svelte';
+	import { projectState } from '$lib/stores/project.svelte';
 	import ChatTurn from './ChatTurn.svelte';
 
 	let instruction = $state('');
 	let textareaEl: HTMLTextAreaElement;
 	let scrollEl: HTMLDivElement;
 
+	const noFileSelected = $derived(projectState.isOpen && !documentState.path);
+
 	const sendDisabled = $derived(
-		sessionState.status !== 'connected' || !sessionState.selectedModel || conversationState.isBusy
+		sessionState.status !== 'connected' ||
+			!sessionState.selectedModel ||
+			conversationState.isBusy ||
+			noFileSelected
 	);
 
 	function resizeTextarea() {
@@ -80,7 +86,9 @@
 	<div bind:this={scrollEl} class="flex-1 overflow-y-auto px-3.5 py-3">
 		{#if conversationState.turns.length === 0}
 			<p class="text-sm text-neutral-400 dark:text-neutral-500">
-				Describe a change below to get started.
+				{noFileSelected
+					? 'Select a file from the sidebar to get started.'
+					: 'Describe a change below to get started.'}
 			</p>
 		{/if}
 		<div class="space-y-3">
@@ -96,7 +104,7 @@
 			bind:value={instruction}
 			oninput={resizeTextarea}
 			onkeydown={handleKeydown}
-			disabled={sessionState.status !== 'connected'}
+			disabled={sessionState.status !== 'connected' || noFileSelected}
 			rows="1"
 			placeholder="Describe the change you want…"
 			class="max-h-40 flex-1 resize-none overflow-hidden rounded-xl bg-transparent px-2.5 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 disabled:opacity-50 dark:text-neutral-100 dark:placeholder:text-neutral-500"

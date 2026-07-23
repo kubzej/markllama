@@ -6,6 +6,7 @@
 	import { markdown } from '@codemirror/lang-markdown';
 	import { languages } from '@codemirror/language-data';
 	import { documentState } from '$lib/stores/document.svelte';
+	import { projectState } from '$lib/stores/project.svelte';
 	import { editorTheme } from './editorTheme';
 	import { renderMarkdown } from '$lib/markdown';
 
@@ -16,6 +17,7 @@
 	let applyingExternalChange = false;
 	let mode = $state<Mode>('raw');
 
+	const noFileSelected = $derived(projectState.isOpen && !documentState.path);
 	const previewHtml = $derived(mode === 'preview' ? renderMarkdown(documentState.content) : '');
 
 	function createState(doc: string) {
@@ -40,9 +42,9 @@
 	// CodeMirror only exists in the DOM while in 'raw' mode — it's destroyed and recreated on
 	// toggle rather than hidden with CSS, since CodeMirror can't measure layout while hidden.
 	$effect(() => {
-		if (mode === 'raw' && container && !view) {
+		if (mode === 'raw' && container && !view && !noFileSelected) {
 			view = new EditorView({ state: createState(documentState.content), parent: container });
-		} else if (mode !== 'raw' && view) {
+		} else if ((mode !== 'raw' || noFileSelected) && view) {
 			view.destroy();
 			view = undefined;
 		}
@@ -95,7 +97,13 @@
 	</div>
 
 	<div class="flex-1 overflow-auto">
-		{#if mode === 'raw'}
+		{#if noFileSelected}
+			<div
+				class="flex h-full items-center justify-center p-6 text-center text-sm text-neutral-400 dark:text-neutral-500"
+			>
+				Select a Markdown file from the sidebar to start editing.
+			</div>
+		{:else if mode === 'raw'}
 			<div bind:this={container} class="h-full w-full"></div>
 		{:else}
 			<div class="markdown-preview p-6 text-sm text-neutral-800 dark:text-neutral-200">

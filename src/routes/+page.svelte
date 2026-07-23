@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import Toolbar from '$lib/components/Toolbar.svelte';
+	import Sidebar from '$lib/components/Sidebar.svelte';
 	import Editor from '$lib/components/Editor.svelte';
 	import ChatLog from '$lib/components/ChatLog.svelte';
 	import ChangesPanel from '$lib/components/ChangesPanel.svelte';
+	import FileSwitchConfirmDialog from '$lib/components/FileSwitchConfirmDialog.svelte';
 	import { documentState } from '$lib/stores/document.svelte';
 	import { sessionState } from '$lib/stores/session.svelte';
+	import { projectState } from '$lib/stores/project.svelte';
+	import { uiState } from '$lib/stores/ui.svelte';
 
 	$effect(() => {
 		const title = documentState.dirty ? `${documentState.filename} — Edited` : documentState.filename;
@@ -24,6 +28,9 @@
 		</div>
 	{/if}
 	<div class="flex flex-1 gap-3 overflow-hidden p-3">
+		{#if projectState.isOpen && uiState.sidebarOpen}
+			<Sidebar />
+		{/if}
 		<main class="flex-1 overflow-hidden">
 			<Editor />
 		</main>
@@ -33,3 +40,5 @@
 		</div>
 	</div>
 </div>
+
+<FileSwitchConfirmDialog />

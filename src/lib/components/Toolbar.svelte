@@ -3,8 +3,9 @@
 	import { listen } from '@tauri-apps/api/event';
 	import { documentState } from '$lib/stores/document.svelte';
 	import { sessionState } from '$lib/stores/session.svelte';
+	import { projectState } from '$lib/stores/project.svelte';
 	import { uiState } from '$lib/stores/ui.svelte';
-	import { openDocument, saveDocument, saveDocumentAs } from '$lib/actions/fileActions';
+	import { openDocument, openFolder, saveDocument, saveDocumentAs } from '$lib/actions/fileActions';
 	import Logo from './Logo.svelte';
 	import OllamaStatus from './OllamaStatus.svelte';
 	import ModelSelector from './ModelSelector.svelte';
@@ -16,12 +17,26 @@
 	let pollHandle: ReturnType<typeof setInterval>;
 	let unlistenMenu: Array<() => void> = [];
 
+	let openMenuOpen = $state(false);
+	let openMenuRootEl: HTMLDivElement | undefined = $state(undefined);
+
+	function handleWindowClick(event: MouseEvent) {
+		if (openMenuOpen && openMenuRootEl && !openMenuRootEl.contains(event.target as Node)) {
+			openMenuOpen = false;
+		}
+	}
+
+	function handleWindowKeydown(event: KeyboardEvent) {
+		if (openMenuOpen && event.key === 'Escape') openMenuOpen = false;
+	}
+
 	onMount(() => {
 		sessionState.loadPreferences().then(() => sessionState.refresh());
 		pollHandle = setInterval(() => sessionState.refresh(), OLLAMA_POLL_INTERVAL_MS);
 
 		Promise.all([
 			listen('menu:open', () => openDocument()),
+			listen('menu:open-folder', () => openFolder()),
 			listen('menu:save', () => saveDocument()),
 			listen('menu:save-as', () => saveDocumentAs()),
 			listen('menu:settings', () => (uiState.settingsOpen = true))
@@ -36,21 +51,52 @@
 	});
 </script>
 
+<svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />
+
 <header
 	class="flex h-12 shrink-0 items-center gap-5 border-b border-neutral-200/70 bg-neutral-50/80 px-3.5 text-sm backdrop-blur-xl dark:border-white/[0.06] dark:bg-neutral-950/70"
 	data-tauri-drag-region
 >
 	<div class="flex shrink-0 items-center gap-1 pl-24">
-		<button
-			title="Open… (⌘O)"
-			class="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
-			onclick={() => openDocument()}
-		>
-			<svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
-			</svg>
-			<span class="whitespace-nowrap">Open</span>
-		</button>
+		<div class="relative" bind:this={openMenuRootEl}>
+			<button
+				title="Open…"
+				onclick={() => (openMenuOpen = !openMenuOpen)}
+				class="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
+			>
+				<svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
+				</svg>
+				<span class="whitespace-nowrap">Open</span>
+				<svg viewBox="0 0 24 24" class="size-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M6 9l6 6 6-6" />
+				</svg>
+			</button>
+			{#if openMenuOpen}
+				<div
+					class="absolute top-full left-0 z-50 mt-1 w-44 rounded-xl bg-white p-1 shadow-lg ring-1 ring-neutral-200/70 dark:bg-neutral-800 dark:ring-white/10"
+				>
+					<button
+						onclick={() => {
+							openMenuOpen = false;
+							openDocument();
+						}}
+						class="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-white/5"
+					>
+						Open File…
+					</button>
+					<button
+						onclick={() => {
+							openMenuOpen = false;
+							openFolder();
+						}}
+						class="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-white/5"
+					>
+						Open Folder…
+					</button>
+				</div>
+			{/if}
+		</div>
 		<button
 			title="Save (⌘S)"
 			class="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
@@ -63,6 +109,18 @@
 			</svg>
 			<span class="whitespace-nowrap">Save</span>
 		</button>
+		{#if projectState.isOpen}
+			<button
+				title="Toggle sidebar"
+				onclick={() => (uiState.sidebarOpen = !uiState.sidebarOpen)}
+				class="flex shrink-0 items-center rounded-lg p-1.5 text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
+			>
+				<svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+					<rect x="3" y="4" width="18" height="16" rx="2" />
+					<path d="M9 4v16" />
+				</svg>
+			</button>
+		{/if}
 	</div>
 
 	<div class="flex min-w-0 flex-1 items-center gap-2">

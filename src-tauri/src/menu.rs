@@ -2,6 +2,7 @@ use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{App, Emitter, Wry};
 
 pub const MENU_EVENT_OPEN: &str = "menu:open";
+pub const MENU_EVENT_OPEN_FOLDER: &str = "menu:open-folder";
 pub const MENU_EVENT_SAVE: &str = "menu:save";
 pub const MENU_EVENT_SAVE_AS: &str = "menu:save-as";
 pub const MENU_EVENT_SETTINGS: &str = "menu:settings";
@@ -17,6 +18,9 @@ pub fn setup(app: &App<Wry>) -> tauri::Result<()> {
         .build(app)?;
     let open_item = MenuItemBuilder::with_id(MENU_EVENT_OPEN, "Open…")
         .accelerator("CmdOrCtrl+O")
+        .build(app)?;
+    let open_folder_item = MenuItemBuilder::with_id(MENU_EVENT_OPEN_FOLDER, "Open Folder…")
+        .accelerator("CmdOrCtrl+Shift+O")
         .build(app)?;
     let save_item = MenuItemBuilder::with_id(MENU_EVENT_SAVE, "Save")
         .accelerator("CmdOrCtrl+S")
@@ -41,6 +45,7 @@ pub fn setup(app: &App<Wry>) -> tauri::Result<()> {
 
     let file_menu = SubmenuBuilder::new(app, "File")
         .item(&open_item)
+        .item(&open_folder_item)
         .item(&save_item)
         .item(&save_as_item)
         .build()?;
@@ -67,7 +72,11 @@ pub fn setup(app: &App<Wry>) -> tauri::Result<()> {
         let id = event.id().0.as_str();
         if matches!(
             id,
-            MENU_EVENT_OPEN | MENU_EVENT_SAVE | MENU_EVENT_SAVE_AS | MENU_EVENT_SETTINGS
+            MENU_EVENT_OPEN
+                | MENU_EVENT_OPEN_FOLDER
+                | MENU_EVENT_SAVE
+                | MENU_EVENT_SAVE_AS
+                | MENU_EVENT_SETTINGS
         ) {
             let _ = app_handle.emit(id, ());
         }

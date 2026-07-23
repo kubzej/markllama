@@ -15,6 +15,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       fs::document::read_document,
       fs::document::write_document,
+      fs::project::scan_project,
       ollama::client::ollama_detect,
       ollama::client::ollama_list_models,
       ollama::client::ollama_supports_thinking,

@@ -207,4 +207,28 @@ mod tests {
             .any(|line| matches!(line, DiffLine::Removed { text } if text == "Old paragraph.")));
         assert!(!result.iter().any(|line| matches!(line, DiffLine::Added { .. })));
     }
+
+    /// A multi-line replace block (old_len/new_len != 1) doesn't map 1:1 for word-level pairing
+    /// — this exercises the fallback branch specifically, confirming it degrades to whole-line
+    /// Removed/Added rather than producing a (nonsensical) `Changed` line for mismatched content.
+    #[test]
+    fn multi_line_replace_falls_back_to_whole_line_removed_and_added() {
+        let old = "# Title\n\nLine one.\nLine two.\n";
+        let new = "# Title\n\nCompletely different.\nAnother line.\nA third one.\n";
+        let result = diff_markdown(old, new);
+
+        assert!(!result.iter().any(|line| matches!(line, DiffLine::Changed { .. })));
+        assert!(result
+            .iter()
+            .any(|line| matches!(line, DiffLine::Removed { text } if text == "Line one.")));
+        assert!(result
+            .iter()
+            .any(|line| matches!(line, DiffLine::Removed { text } if text == "Line two.")));
+        assert!(result
+            .iter()
+            .any(|line| matches!(line, DiffLine::Added { text } if text == "Completely different.")));
+        assert!(result
+            .iter()
+            .any(|line| matches!(line, DiffLine::Added { text } if text == "A third one.")));
+    }
 }

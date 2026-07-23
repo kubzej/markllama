@@ -29,3 +29,4 @@ futures-util = "0.3"
 similar = "2"
 keyring = { version = "3", features = ["apple-native"] }
 base64 = "0.22"
+tokio = { version = "1", features = ["time"] }

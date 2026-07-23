@@ -1,5 +1,6 @@
 use std::process::Child;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use super::client::OllamaClient;
 
@@ -35,11 +36,32 @@ impl OllamaProcess {
         match spawn_ollama_serve() {
             Ok(child) => {
                 *self.child.lock().unwrap() = Some(child);
+                self.verify_started(client).await;
             }
             Err(err) => {
                 log::warn!("Could not start `ollama serve` automatically: {err}");
             }
         }
+    }
+
+    /// After spawning, poll for a few seconds to confirm Ollama actually came up listening on
+    /// `:11434` — a spawned-but-dead-on-arrival process (bad install, corrupted config) would
+    /// otherwise just sit as a tracked but useless `Child` with nothing telling the user
+    /// generation will never work.
+    async fn verify_started(&self, client: &OllamaClient) {
+        const ATTEMPTS: u8 = 10;
+        const RETRY_DELAY: Duration = Duration::from_millis(300);
+
+        for _ in 0..ATTEMPTS {
+            if client.detect().await {
+                return;
+            }
+            tokio::time::sleep(RETRY_DELAY).await;
+        }
+
+        log::warn!(
+            "`ollama serve` was started but never became reachable on localhost:11434 after {ATTEMPTS} attempts"
+        );
     }
 
     /// Stops the process this instance spawned, if any — called on app exit. See the `Exit`/

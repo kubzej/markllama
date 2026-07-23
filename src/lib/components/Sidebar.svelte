@@ -31,8 +31,9 @@
 		</span>
 		<button
 			title="Refresh"
+			aria-label="Refresh project file tree"
 			onclick={refresh}
-			class="shrink-0 rounded-md p-1 text-neutral-400 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
+			class="shrink-0 rounded-md p-1 text-neutral-400 transition-colors duration-150 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
 		>
 			<svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" />
@@ -40,8 +41,9 @@
 		</button>
 		<button
 			title="Hide sidebar"
+			aria-label="Hide sidebar"
 			onclick={() => (uiState.sidebarOpen = false)}
-			class="shrink-0 rounded-md p-1 text-neutral-400 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
+			class="shrink-0 rounded-md p-1 text-neutral-400 transition-colors duration-150 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
 		>
 			<svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
 				<rect x="3" y="4" width="18" height="16" rx="2" />

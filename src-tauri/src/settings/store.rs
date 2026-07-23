@@ -57,7 +57,16 @@ pub fn get_settings(app: AppHandle) -> Result<Settings, String> {
     }
     let raw = std::fs::read_to_string(&path)
         .map_err(|err| format!("Could not read settings: {err}"))?;
-    serde_json::from_str(&raw).map_err(|err| format!("Could not parse settings: {err}"))
+    // A corrupted settings.json (e.g. truncated by a crash mid-write, before the atomic write
+    // below existed) should degrade to defaults rather than permanently locking the user out of
+    // the app on every subsequent launch.
+    match serde_json::from_str(&raw) {
+        Ok(settings) => Ok(settings),
+        Err(err) => {
+            log::warn!("Could not parse settings.json ({err}); falling back to defaults");
+            Ok(Settings::default())
+        }
+    }
 }
 
 #[tauri::command]
@@ -65,7 +74,8 @@ pub fn set_settings(app: AppHandle, settings: Settings) -> Result<(), String> {
     let path = settings_path(&app)?;
     let raw = serde_json::to_string_pretty(&settings)
         .map_err(|err| format!("Could not serialize settings: {err}"))?;
-    std::fs::write(&path, raw).map_err(|err| format!("Could not write settings: {err}"))
+    crate::fs::write_atomically(&path, raw.as_bytes())
+        .map_err(|err| format!("Could not write settings: {err}"))
 }
 
 #[cfg(test)]
@@ -119,5 +129,16 @@ mod tests {
         let json = serde_json::to_string(&settings).expect("should serialize");
         let parsed: Settings = serde_json::from_str(&json).expect("should parse");
         assert_eq!(parsed.num_ctx_overrides.get("qwen3.5:9b"), Some(&8192));
+    }
+
+    /// Truncated/corrupted JSON (e.g. a crash mid-write) must not fail to deserialize into
+    /// `Settings` in a way callers can't recover from — `get_settings`'s fallback-to-default
+    /// path is what actually handles this at the command level; this test just confirms the
+    /// underlying parse genuinely fails on garbage input, which is the precondition that path
+    /// relies on.
+    #[test]
+    fn truncated_json_fails_to_parse() {
+        let truncated = r#"{"lastModel":"qwen3.5:9b","thinkingDef"#;
+        assert!(serde_json::from_str::<Settings>(truncated).is_err());
     }
 }

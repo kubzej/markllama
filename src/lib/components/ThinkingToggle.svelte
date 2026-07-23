@@ -19,7 +19,15 @@
 		: idleClass}"
 	onclick={() => (sessionState.thinkingEnabled = !sessionState.thinkingEnabled)}
 >
-	<svg viewBox="0 0 24 24" class="size-4" fill="currentColor">
+	<svg
+		viewBox="0 0 24 24"
+		class="size-4"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.8"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+	>
 		<path d="M12 2 L14.2 9.8 L22 12 L14.2 14.2 L12 22 L9.8 14.2 L2 12 L9.8 9.8 Z" />
 	</svg>
 	Thinking

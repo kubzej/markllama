@@ -34,14 +34,29 @@ function createSessionState() {
 		if (!hasApiKey) webSearchEnabled = false;
 	}
 
-	function persistPreferences() {
-		if (!preferencesLoaded) return;
-		void setSettings({
+	/**
+	 * Returns the underlying save so callers that show a "Saved" confirmation (e.g.
+	 * `ModelNoteEditor`) can await it and only claim success once the write actually completed —
+	 * previously this was fire-and-forget everywhere, so a failed write (disk full, permission
+	 * issue) still showed "Saved" to the user. Callers that don't need to react to failure can
+	 * keep treating it as fire-and-forget by not awaiting it.
+	 */
+	function persistPreferences(): Promise<void> {
+		if (!preferencesLoaded) return Promise.resolve();
+		return setSettings({
 			lastModel: selectedModel,
 			thinkingDefault: thinkingEnabled,
 			webSearchDefault: webSearchEnabled,
 			modelNotes,
 			numCtxOverrides
+		});
+	}
+
+	/** For call sites that don't need to react to save failures — still logs instead of leaving
+	 *  an unhandled promise rejection. */
+	function persistPreferencesInBackground() {
+		persistPreferences().catch((err) => {
+			console.error('Failed to save preferences', err);
 		});
 	}
 
@@ -59,7 +74,7 @@ function createSessionState() {
 		return modelNotes[name] ?? { alias: '', description: '' };
 	}
 
-	function setModelNote(name: string, note: ModelNote) {
+	function setModelNote(name: string, note: ModelNote): Promise<void> {
 		if (!note.alias.trim() && !note.description.trim()) {
 			const rest = { ...modelNotes };
 			delete rest[name];
@@ -67,14 +82,14 @@ function createSessionState() {
 		} else {
 			modelNotes = { ...modelNotes, [name]: note };
 		}
-		persistPreferences();
+		return persistPreferences();
 	}
 
 	function getNumCtxOverride(name: string): number | null {
 		return numCtxOverrides[name] ?? null;
 	}
 
-	function setNumCtxOverride(name: string, value: number | null) {
+	function setNumCtxOverride(name: string, value: number | null): Promise<void> {
 		if (value == null) {
 			const rest = { ...numCtxOverrides };
 			delete rest[name];
@@ -82,7 +97,7 @@ function createSessionState() {
 		} else {
 			numCtxOverrides = { ...numCtxOverrides, [name]: value };
 		}
-		persistPreferences();
+		return persistPreferences();
 	}
 
 	/**
@@ -113,7 +128,7 @@ function createSessionState() {
 			numCtxOverrides = pruned;
 		}
 
-		if (hasOrphanNote || hasOrphanOverride) persistPreferences();
+		if (hasOrphanNote || hasOrphanOverride) persistPreferencesInBackground();
 	}
 
 	async function refreshThinkingSupport() {
@@ -160,7 +175,7 @@ function createSessionState() {
 
 		if (!selectedModel || !models.some((model) => model.name === selectedModel)) {
 			selectedModel = models[0]?.name ?? null;
-			persistPreferences();
+			persistPreferencesInBackground();
 		}
 
 		await refreshThinkingSupport();
@@ -182,7 +197,7 @@ function createSessionState() {
 			selectedModel = name;
 			void refreshThinkingSupport();
 			void refreshVisionSupport();
-			persistPreferences();
+			persistPreferencesInBackground();
 		},
 		get modelSupportsThinking() {
 			return modelSupportsThinking;
@@ -195,7 +210,7 @@ function createSessionState() {
 		},
 		set thinkingEnabled(value: boolean) {
 			thinkingEnabled = modelSupportsThinking ? value : false;
-			persistPreferences();
+			persistPreferencesInBackground();
 		},
 		get hasApiKey() {
 			return hasApiKey;
@@ -205,7 +220,7 @@ function createSessionState() {
 		},
 		set webSearchEnabled(value: boolean) {
 			webSearchEnabled = hasApiKey ? value : false;
-			persistPreferences();
+			persistPreferencesInBackground();
 		},
 		get modelNotes() {
 			return modelNotes;

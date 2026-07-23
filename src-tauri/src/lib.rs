@@ -31,13 +31,14 @@ pub fn run() {
       settings::keychain::has_web_search_api_key,
     ])
     .setup(|app| {
-      if cfg!(debug_assertions) {
-        app.handle().plugin(
-          tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
-            .build(),
-        )?;
-      }
+      // Registered unconditionally, not just in debug builds — this is the app's only
+      // diagnostic logging (e.g. `ollama::process`'s "could not start/verify ollama serve"
+      // warnings), and it would otherwise be a silent no-op in exactly the build users run.
+      app.handle().plugin(
+        tauri_plugin_log::Builder::default()
+          .level(log::LevelFilter::Info)
+          .build(),
+      )?;
       menu::setup(app)?;
 
       let app_handle = app.handle().clone();

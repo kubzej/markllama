@@ -43,6 +43,17 @@ export async function cancelGeneration(): Promise<void> {
 	await invoke('cancel_generation');
 }
 
+interface GenerationEventPayload {
+	id: string;
+	chunk: string;
+}
+
+/**
+ * `generationId` is echoed back on every emitted event so this call's listeners can ignore
+ * events that belong to a *different* generation — e.g. one abandoned by a file switch whose
+ * HTTP stream hadn't fully closed yet when a new generation started. Without this, chunks from
+ * an abandoned generation could bleed into whichever turn is now active.
+ */
 export async function generateEdit(
 	model: string,
 	markdown: string,
@@ -51,17 +62,22 @@ export async function generateEdit(
 	numCtx: number | null,
 	thinking: boolean,
 	webSearch: boolean,
+	generationId: string,
 	onChunk: (chunk: string) => void,
 	onThinking: (chunk: string) => void
 ): Promise<string> {
-	const unlistenChunk = await listen<string>('generation:chunk', (event) =>
-		onChunk(event.payload)
-	);
-	const unlistenThinking = await listen<string>('generation:thinking', (event) =>
-		onThinking(event.payload)
+	const unlistenChunk = await listen<GenerationEventPayload>('generation:chunk', (event) => {
+		if (event.payload.id === generationId) onChunk(event.payload.chunk);
+	});
+	const unlistenThinking = await listen<GenerationEventPayload>(
+		'generation:thinking',
+		(event) => {
+			if (event.payload.id === generationId) onThinking(event.payload.chunk);
+		}
 	);
 	try {
 		return await invoke<string>('generate_edit', {
+			generationId,
 			model,
 			markdown,
 			instruction,

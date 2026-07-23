@@ -16,17 +16,23 @@
 		untrack(() => sessionState.getNumCtxOverride(modelName)) ?? undefined
 	);
 	let maxContext = $state<number | null>(null);
+	let infoUnavailable = $state(false);
 	let justSaved = $state(false);
+	let saveError = $state<string | null>(null);
 	let debounceHandle: ReturnType<typeof setTimeout> | undefined;
 	let flashHandle: ReturnType<typeof setTimeout> | undefined;
 
-	// Fetched lazily for the `max` bound on the num_ctx input — errors are ignored (leaves the
-	// input unbounded) rather than treated as a hard failure, since this is just a UI constraint.
+	// Fetched lazily for the `max` bound on the num_ctx input. A failure here isn't fatal (the
+	// input just stays unbounded), but it's surfaced with a small hint rather than swallowed
+	// entirely — silently showing nothing looks identical to "this model has no known max",
+	// which isn't true and was confusing.
 	untrack(() => getModelInfo(modelName))
 		.then((info) => {
 			maxContext = info.contextLength;
 		})
-		.catch(() => {});
+		.catch(() => {
+			infoUnavailable = true;
+		});
 
 	function clampNumCtx(value: number): number {
 		const rounded = Math.max(1, Math.round(value));
@@ -37,15 +43,23 @@
 	// Escape — a focused input removed from the DOM never fires `blur`, so relying on that
 	// alone silently drops in-progress text. The pending setTimeout survives unmount and still
 	// calls into the store, which does not depend on this component's lifecycle.
-	function flush() {
+	async function flush() {
 		clearTimeout(debounceHandle);
-		sessionState.setModelNote(modelName, { alias, description });
 		const clamped = numCtx == null ? null : clampNumCtx(numCtx);
 		if (clamped !== numCtx) numCtx = clamped ?? undefined;
-		sessionState.setNumCtxOverride(modelName, clamped);
-		justSaved = true;
-		clearTimeout(flashHandle);
-		flashHandle = setTimeout(() => (justSaved = false), 1200);
+		try {
+			await Promise.all([
+				sessionState.setModelNote(modelName, { alias, description }),
+				sessionState.setNumCtxOverride(modelName, clamped)
+			]);
+			saveError = null;
+			justSaved = true;
+			clearTimeout(flashHandle);
+			flashHandle = setTimeout(() => (justSaved = false), 1200);
+		} catch (err) {
+			justSaved = false;
+			saveError = err instanceof Error ? err.message : String(err);
+		}
 	}
 
 	function scheduleSave() {
@@ -61,8 +75,9 @@
 			<button
 				type="button"
 				title="Model info"
+				aria-label="Model info for {modelName}"
 				onclick={() => uiState.openModelInfo(modelName)}
-				class="shrink-0 rounded-md p-0.5 text-neutral-400 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
+				class="shrink-0 rounded-md p-1 text-neutral-400 transition-colors duration-150 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
 			>
 				<svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.8">
 					<circle cx="12" cy="12" r="9" />
@@ -73,6 +88,10 @@
 		</div>
 		{#if justSaved}
 			<span class="shrink-0 text-[11px] text-emerald-600 dark:text-emerald-400">Saved</span>
+		{:else if saveError}
+			<span class="shrink-0 text-[11px] text-red-600 dark:text-red-400" title={saveError}
+				>Save failed</span
+			>
 		{/if}
 	</div>
 	<input
@@ -94,6 +113,8 @@
 		<span>Context window (num_ctx)</span>
 		{#if maxContext}
 			<span>max {maxContext.toLocaleString()}</span>
+		{:else if infoUnavailable}
+			<span title="Could not fetch this model's max context length from Ollama">max unknown</span>
 		{/if}
 	</div>
 	<input
@@ -104,6 +125,10 @@
 		oninput={scheduleSave}
 		onblur={flush}
 		placeholder="Default"
-		class="w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+		class="mb-1 w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
 	/>
+	<p class="text-[11px] text-neutral-400 dark:text-neutral-500">
+		How much of the conversation this model can "see" at once. Higher uses more memory and is
+		slower; leave empty to use Ollama's own default.
+	</p>
 </div>

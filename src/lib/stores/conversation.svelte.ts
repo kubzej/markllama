@@ -96,6 +96,7 @@ function createConversationState() {
 				numCtx,
 				thinking,
 				webSearch,
+				turn.id,
 				(chunk) => {
 					// Raw streamed answer text isn't shown in chat (it becomes the diff below) —
 					// only its length is, as a liveness signal.

@@ -55,7 +55,7 @@
 					type="button"
 					aria-label="Close"
 					onclick={() => uiState.closeModelInfo()}
-					class="shrink-0 rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+					class="shrink-0 rounded-md p-1 text-neutral-400 transition-colors duration-150 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
 				>
 					<svg
 						viewBox="0 0 24 24"

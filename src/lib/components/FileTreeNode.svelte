@@ -15,8 +15,9 @@
 	<button
 		type="button"
 		onclick={() => projectState.toggleExpanded(node.path)}
+		aria-expanded={expanded}
 		style={`padding-left: ${rowPadding}`}
-		class="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm text-neutral-600 hover:bg-neutral-900/5 dark:text-neutral-300 dark:hover:bg-white/[0.06]"
+		class="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-300 dark:hover:bg-white/[0.06]"
 	>
 		<svg
 			viewBox="0 0 24 24"
@@ -29,7 +30,7 @@
 		>
 			<path d="M9 6l6 6-6 6" />
 		</svg>
-		<span class="truncate">{node.name}</span>
+		<span class="min-w-0 flex-1 truncate">{node.name}</span>
 	</button>
 	{#if expanded}
 		{#each node.children as child (child.path)}
@@ -42,7 +43,8 @@
 		type="button"
 		onclick={() => switchActiveFile(node.path)}
 		style={`padding-left: ${rowPadding}`}
-		class="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm hover:bg-neutral-900/5 dark:hover:bg-white/[0.06] {active
+		aria-current={active ? 'true' : undefined}
+		class="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm transition-colors duration-150 hover:bg-neutral-900/5 dark:hover:bg-white/[0.06] {active
 			? 'bg-accent/10 font-medium text-neutral-900 dark:bg-accent/15 dark:text-white'
 			: 'text-neutral-600 dark:text-neutral-300'}"
 	>
@@ -58,6 +60,6 @@
 			<path d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
 			<path d="M14 3v4h4" />
 		</svg>
-		<span class="truncate">{node.name}</span>
+		<span class="min-w-0 flex-1 truncate">{node.name}</span>
 	</button>
 {/if}

@@ -60,12 +60,14 @@
 </div>
 <div class="flex flex-col gap-1.5">
 	<div class="flex items-center gap-1.5 text-xs font-medium text-neutral-400 dark:text-neutral-500">
-		<span class="truncate text-neutral-500 dark:text-neutral-400">{modelLabel}</span>
-		<span class="text-neutral-300 dark:text-neutral-600">·</span>
-		<span class={`size-1.5 rounded-full ${statusDotClass}`}></span>
-		{statusLabel}
+		<span class="min-w-0 flex-1 truncate text-neutral-500 dark:text-neutral-400">{modelLabel}</span>
+		<span class="shrink-0 text-neutral-300 dark:text-neutral-600">·</span>
+		<span class={`size-1.5 shrink-0 rounded-full ${statusDotClass}`}></span>
+		<span class="shrink-0 whitespace-nowrap">{statusLabel}</span>
 		{#if turn.status === 'generating' && turn.answerLength > 0}
-			<span class="text-neutral-300 dark:text-neutral-600">· {turn.answerLength} chars</span>
+			<span class="shrink-0 whitespace-nowrap text-neutral-300 dark:text-neutral-600"
+				>· {turn.answerLength} chars</span
+			>
 		{/if}
 	</div>
 

@@ -61,6 +61,8 @@
 		<div class="relative" bind:this={openMenuRootEl}>
 			<button
 				title="Open…"
+				aria-haspopup="menu"
+				aria-expanded={openMenuOpen}
 				onclick={() => (openMenuOpen = !openMenuOpen)}
 				class="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
 			>
@@ -112,10 +114,11 @@
 		{#if projectState.isOpen}
 			<button
 				title="Toggle sidebar"
+				aria-label="Toggle sidebar"
 				onclick={() => (uiState.sidebarOpen = !uiState.sidebarOpen)}
-				class="flex shrink-0 items-center rounded-lg p-1.5 text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
+				class="flex shrink-0 items-center rounded-md p-1 text-neutral-400 transition-colors duration-150 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
 			>
-				<svg viewBox="0 0 24 24" class="size-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+				<svg viewBox="0 0 24 24" class="size-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
 					<rect x="3" y="4" width="18" height="16" rx="2" />
 					<path d="M9 4v16" />
 				</svg>

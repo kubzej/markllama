@@ -45,9 +45,10 @@
 {#snippet modelRow(model: OllamaModel)}
 	{@const note = sessionState.getModelNote(model.name)}
 	{@const selected = model.name === sessionState.selectedModel}
+	{@const numCtx = sessionState.getNumCtxOverride(model.name)}
 	<div
-		class="flex w-full items-start gap-1 rounded-lg {selected
-			? 'bg-accent/10 dark:bg-accent/15'
+		class="flex w-full items-start gap-0.5 rounded-lg {selected
+			? 'bg-accent/10 ring-1 ring-inset ring-accent/25 dark:bg-accent/15'
 			: ''}"
 	>
 		<button
@@ -57,13 +58,25 @@
 		>
 			<span class="block min-w-0 flex-1">
 				<span class="flex items-baseline gap-1.5">
-					<span class="truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">
+					<span
+						class="truncate text-sm font-medium {selected
+							? 'text-neutral-900 dark:text-white'
+							: 'text-neutral-800 dark:text-neutral-100'}"
+					>
 						{note.alias.trim() || model.name}
 					</span>
 					{#if note.alias.trim()}
 						<span class="truncate font-mono text-[11px] text-neutral-400 dark:text-neutral-500"
 							>{model.name}</span
 						>
+					{/if}
+					{#if numCtx}
+						<span
+							title="Custom context window: {numCtx.toLocaleString()} tokens"
+							class="shrink-0 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-neutral-500 dark:bg-white/10 dark:text-neutral-400"
+						>
+							{numCtx >= 1000 ? `${Math.round(numCtx / 1000)}K` : numCtx} ctx
+						</span>
 					{/if}
 				</span>
 				{#if note.description.trim()}
@@ -89,8 +102,9 @@
 		<button
 			type="button"
 			title="Model info"
+			aria-label="Model info for {model.name}"
 			onclick={() => uiState.openModelInfo(model.name)}
-			class="mt-1 shrink-0 rounded-md p-1 text-neutral-400 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
+			class="shrink-0 self-start rounded-md p-1.5 text-neutral-400 transition-colors duration-150 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
 		>
 			<svg
 				viewBox="0 0 24 24"
@@ -114,7 +128,9 @@
 		type="button"
 		disabled={sessionState.models.length === 0}
 		onclick={() => (open = !open)}
-		class="flex max-w-48 items-center gap-1 rounded-lg px-2.5 py-1.5 text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 disabled:cursor-not-allowed disabled:opacity-50 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
+		aria-haspopup="listbox"
+		aria-expanded={open}
+		class="flex max-w-48 items-center gap-1 rounded-lg px-2.5 py-1.5 text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
 	>
 		<span class="truncate">
 			{sessionState.models.length === 0

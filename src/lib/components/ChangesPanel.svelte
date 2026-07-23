@@ -1,19 +1,70 @@
 <script lang="ts">
 	import { documentState } from '$lib/stores/document.svelte';
 	import { conversationState } from '$lib/stores/conversation.svelte';
+	import { saveDocument } from '$lib/actions/fileActions';
 	import DiffView from './DiffView.svelte';
 
 	const activeTurn = $derived(conversationState.activeTurn);
 
-	function handleApply() {
+	let confirmingDiscard = $state(false);
+	let confirmingDiscardHandle: ReturnType<typeof setTimeout> | undefined;
+	let applying = $state(false);
+	let applyError = $state<string | null>(null);
+
+	// Mirrors ChatTurn's own generating-status label so the Changes panel doesn't look dead while
+	// a generation is actually in progress right next to it — previously this panel just showed
+	// the static empty-state message the entire time, with no visible sign anything was happening.
+	const generatingLabel = $derived.by(() => {
+		if (activeTurn?.status !== 'generating') return null;
+		if (activeTurn.answerLength > 0) return 'Writing…';
+		if (activeTurn.thinkingText.length > 0) return 'Thinking…';
+		return 'Generating…';
+	});
+
+	/**
+	 * Applying an AI suggestion is conceptually "accept and save this" — saving to disk
+	 * automatically afterwards means the only way content actually lands in the file is still
+	 * through this explicit confirmation (never a hidden background write), it just no longer
+	 * requires a separate manual Save click for the common case. If the write fails (no
+	 * writable path resolved, disk error, etc.), the change is still applied in memory — just
+	 * left dirty, same as any other edit that hasn't been saved yet — and the failure is
+	 * surfaced rather than silently swallowed.
+	 */
+	async function handleApply() {
 		conversationState.applyActive((text) => {
 			documentState.content = text;
 		});
+		applyError = null;
+		applying = true;
+		try {
+			await saveDocument();
+		} catch (err) {
+			applyError = err instanceof Error ? err.message : String(err);
+		} finally {
+			applying = false;
+		}
 	}
 
-	function handleDiscard() {
+	function handleDiscardClick() {
+		if (!confirmingDiscard) {
+			confirmingDiscard = true;
+			clearTimeout(confirmingDiscardHandle);
+			confirmingDiscardHandle = setTimeout(() => (confirmingDiscard = false), 3000);
+			return;
+		}
+		clearTimeout(confirmingDiscardHandle);
+		confirmingDiscard = false;
 		conversationState.discardActive();
 	}
+
+	$effect(() => {
+		// Reset transient per-turn state whenever the active turn changes out from under it (a
+		// new turn started, etc.) so a stale "Confirm discard?" or a previous apply's save error
+		// never lingers on screen for the wrong turn.
+		void activeTurn?.id;
+		confirmingDiscard = false;
+		applyError = null;
+	});
 </script>
 
 <aside
@@ -26,8 +77,20 @@
 	</div>
 
 	<div class="flex-1 overflow-auto p-3 text-sm">
-		{#if activeTurn?.status === 'reviewing' && activeTurn.diff}
+		{#if applying}
+			<p class="text-sm text-neutral-400 dark:text-neutral-500">Saving…</p>
+		{:else if applyError}
+			<p class="text-sm text-red-600 dark:text-red-400">
+				Applied, but saving to disk failed: {applyError} The change is still in the editor —
+				use Save to try again.
+			</p>
+		{:else if activeTurn?.status === 'reviewing' && activeTurn.diff}
 			<DiffView diff={activeTurn.diff} />
+		{:else if generatingLabel}
+			<div class="flex items-center gap-1.5 text-sm text-neutral-400 dark:text-neutral-500">
+				<span class="size-1.5 rounded-full bg-accent animate-pulse"></span>
+				{generatingLabel}
+			</div>
 		{:else}
 			<p class="text-sm text-neutral-400 dark:text-neutral-500">No changes to review yet.</p>
 		{/if}
@@ -38,10 +101,12 @@
 			class="flex items-center justify-end gap-2 border-t border-neutral-200/70 px-3.5 py-2.5 dark:border-white/[0.06]"
 		>
 			<button
-				class="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
-				onclick={handleDiscard}
+				class="rounded-lg px-2.5 py-1.5 text-sm transition-colors duration-150 {confirmingDiscard
+					? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50'
+					: 'text-neutral-600 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]'}"
+				onclick={handleDiscardClick}
 			>
-				Discard
+				{confirmingDiscard ? 'Confirm discard?' : 'Discard'}
 			</button>
 			<button
 				class="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-accent-dark"

@@ -28,6 +28,22 @@
 			Ollama app) to enable generation — you can still edit the document manually.
 		</div>
 	{/if}
+	{#if projectState.error && !projectState.isOpen}
+		<div
+			class="flex shrink-0 items-center justify-between gap-2 border-b border-red-200/70 bg-red-50 px-3 py-1.5 text-xs text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300"
+		>
+			<span>Couldn't open that folder: {projectState.error}</span>
+			<button
+				aria-label="Dismiss"
+				onclick={() => (projectState.error = null)}
+				class="shrink-0 rounded p-0.5 hover:bg-red-900/10 dark:hover:bg-white/10"
+			>
+				<svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+					<path d="M18 6 6 18M6 6l12 12" />
+				</svg>
+			</button>
+		</div>
+	{/if}
 	<div class="flex flex-1 gap-3 overflow-hidden p-3">
 		{#if projectState.isOpen && uiState.sidebarOpen}
 			<Sidebar />

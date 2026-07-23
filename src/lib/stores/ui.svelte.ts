@@ -7,6 +7,12 @@ function createUiState() {
 	let modelInfoTarget = $state<string | null>(null);
 
 	function requestFileSwitchConfirm(): Promise<FileSwitchChoice> {
+		// A second confirm request arriving while one is already pending (e.g. clicking two
+		// different sidebar files in quick succession) would otherwise overwrite `resolvePending`
+		// and permanently strand the first caller's promise. Resolve the stale one as 'cancel'
+		// first so nothing is left dangling forever — the safest default for a request that's
+		// about to be superseded anyway.
+		resolvePending?.('cancel');
 		return new Promise((resolve) => {
 			resolvePending = (choice) => {
 				resolvePending = null;

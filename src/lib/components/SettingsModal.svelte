@@ -58,7 +58,7 @@
 					type="button"
 					aria-label="Close settings"
 					onclick={() => (open = false)}
-					class="rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+					class="shrink-0 rounded-md p-1 text-neutral-400 transition-colors duration-150 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
 				>
 					<svg
 						viewBox="0 0 24 24"
@@ -100,14 +100,14 @@
 
 					<div class="mt-3 flex items-center justify-between">
 						<button
-							class="rounded-md px-2.5 py-1 text-sm text-neutral-500 hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800"
+							class="rounded-lg px-2.5 py-1.5 text-sm text-neutral-500 transition-colors duration-150 hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800"
 							onclick={handleClear}
 							disabled={!hasKey || saveState === 'saving'}
 						>
 							Delete key
 						</button>
 						<button
-							class="rounded-md bg-accent px-2.5 py-1 text-sm font-medium text-white hover:bg-accent-dark disabled:opacity-40"
+							class="rounded-lg bg-accent px-2.5 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-accent-dark disabled:opacity-40"
 							onclick={handleSave}
 							disabled={!apiKeyInput.trim() || saveState === 'saving'}
 						>
@@ -146,7 +146,7 @@
 
 			<div class="flex justify-end border-t border-neutral-200 px-5 py-3 dark:border-neutral-800">
 				<button
-					class="rounded-md px-3 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+					class="rounded-lg px-3 py-1.5 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
 					onclick={() => (open = false)}
 				>
 					Close

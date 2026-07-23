@@ -17,6 +17,10 @@ const OLLAMA_BASE_URL: &str = "http://localhost:11434";
 const QUICK_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 /// Safety net for generation only, so a truly stalled connection doesn't hang forever.
 const GENERATION_TIMEOUT: Duration = Duration::from_secs(600);
+/// How often the streaming loop wakes up to recheck the cancel flag even when no new bytes have
+/// arrived — without this, a stalled/idle connection would only ever notice Cancel between
+/// chunks, i.e. never, until `GENERATION_TIMEOUT`.
+const STREAM_POLL_INTERVAL: Duration = Duration::from_millis(500);
 const GENERATION_CHUNK_EVENT: &str = "generation:chunk";
 const GENERATION_THINKING_EVENT: &str = "generation:thinking";
 
@@ -80,6 +84,19 @@ struct ChatStreamLine {
     message: Option<ChatStreamMessage>,
     #[serde(default)]
     done: bool,
+    #[serde(default)]
+    error: Option<String>,
+}
+
+/// Emitted payloads for `generation:chunk`/`generation:thinking`. Tagged with the generation's id
+/// (the frontend's chat-turn id, echoed back unchanged) so a listener that outlives its own
+/// generation — e.g. because the user switched files before the old request's HTTP stream fully
+/// closed — can tell the difference and ignore events that belong to an abandoned generation
+/// instead of letting them bleed into whatever turn is now active.
+#[derive(Serialize, Clone)]
+struct GenerationEvent<'a> {
+    id: &'a str,
+    chunk: &'a str,
 }
 
 #[derive(Debug, Deserialize)]
@@ -197,10 +214,10 @@ impl OllamaClient {
             .collect())
     }
 
-    /// Whether the model advertises the `thinking` capability via `/api/show`. Models that
-    /// don't support it should have the thinking toggle disabled rather than silently ignoring
-    /// `think: true`.
-    pub async fn supports_thinking(&self, model: &str) -> Result<bool, String> {
+    /// Shared by `supports_thinking`/`supports_vision`/`get_model_info` — they all just need a
+    /// different slice of the same `/api/show` response, so there's no reason for each to fire
+    /// its own independent request against Ollama.
+    async fn fetch_show(&self, model: &str) -> Result<ShowResponse, String> {
         let response = self
             .http
             .post(format!("{OLLAMA_BASE_URL}/api/show"))
@@ -210,31 +227,24 @@ impl OllamaClient {
             .await
             .map_err(|err| format!("Could not reach Ollama: {err}"))?;
 
-        let show: ShowResponse = response
+        response
             .json()
             .await
-            .map_err(|err| format!("Unexpected response from Ollama: {err}"))?;
+            .map_err(|err| format!("Unexpected response from Ollama: {err}"))
+    }
 
+    /// Whether the model advertises the `thinking` capability via `/api/show`. Models that
+    /// don't support it should have the thinking toggle disabled rather than silently ignoring
+    /// `think: true`.
+    pub async fn supports_thinking(&self, model: &str) -> Result<bool, String> {
+        let show = self.fetch_show(model).await?;
         Ok(show.capabilities.iter().any(|cap| cap == "thinking"))
     }
 
     /// Whether the model advertises the `vision` capability via `/api/show` — gates whether the
     /// UI lets the user attach images to a turn at all.
     pub async fn supports_vision(&self, model: &str) -> Result<bool, String> {
-        let response = self
-            .http
-            .post(format!("{OLLAMA_BASE_URL}/api/show"))
-            .json(&serde_json::json!({ "model": model }))
-            .timeout(QUICK_REQUEST_TIMEOUT)
-            .send()
-            .await
-            .map_err(|err| format!("Could not reach Ollama: {err}"))?;
-
-        let show: ShowResponse = response
-            .json()
-            .await
-            .map_err(|err| format!("Unexpected response from Ollama: {err}"))?;
-
+        let show = self.fetch_show(model).await?;
         Ok(show.capabilities.iter().any(|cap| cap == "vision"))
     }
 
@@ -243,20 +253,7 @@ impl OllamaClient {
     /// `supports_thinking`/`supports_vision` (which only need `capabilities`) since this is only
     /// fetched lazily when the user opens the info dialog, not on every model switch.
     pub async fn get_model_info(&self, model: &str) -> Result<ModelInfo, String> {
-        let response = self
-            .http
-            .post(format!("{OLLAMA_BASE_URL}/api/show"))
-            .json(&serde_json::json!({ "model": model }))
-            .timeout(QUICK_REQUEST_TIMEOUT)
-            .send()
-            .await
-            .map_err(|err| format!("Could not reach Ollama: {err}"))?;
-
-        let show: ShowResponse = response
-            .json()
-            .await
-            .map_err(|err| format!("Unexpected response from Ollama: {err}"))?;
-
+        let show = self.fetch_show(model).await?;
         Ok(ModelInfo {
             architecture: show.details.family,
             parameter_size: show.details.parameter_size,
@@ -274,6 +271,7 @@ impl OllamaClient {
     pub async fn generate_edit(
         &self,
         app: &AppHandle,
+        generation_id: &str,
         model: String,
         markdown: &str,
         instruction: &str,
@@ -288,6 +286,7 @@ impl OllamaClient {
         let result = self
             .generate_edit_inner(
                 app,
+                generation_id,
                 model,
                 markdown,
                 instruction,
@@ -299,15 +298,22 @@ impl OllamaClient {
             )
             .await;
 
-        // Clear the slot so a cancel() call after this generation has already finished doesn't
-        // reach into the *next* one.
-        *self.cancel_flag.lock().unwrap() = None;
+        // Only clear the slot if it still points to *this* generation's flag — a newer
+        // generation may already have replaced it (e.g. this one was cancelled in favor of a
+        // fresh one started before this call had a chance to unwind). Blindly nulling the slot
+        // here would silently strand the newer generation's Cancel button.
+        let mut guard = self.cancel_flag.lock().unwrap();
+        if guard.as_ref().is_some_and(|current| Arc::ptr_eq(current, &cancel)) {
+            *guard = None;
+        }
+        drop(guard);
         result
     }
 
     async fn generate_edit_inner(
         &self,
         app: &AppHandle,
+        generation_id: &str,
         model: String,
         markdown: &str,
         instruction: &str,
@@ -318,10 +324,15 @@ impl OllamaClient {
         cancel: &Arc<AtomicBool>,
     ) -> Result<String, String> {
         let web_context = if web_search_enabled {
-            let api_key = get_api_key()?.ok_or_else(|| {
-                "Web Search is on but no Ollama API key is configured. Add one in Settings."
-                    .to_string()
-            })?;
+            // Keychain access can block on a macOS permission prompt (see settings/keychain.rs) —
+            // must not tie up this async worker thread while waiting on it.
+            let api_key = tauri::async_runtime::spawn_blocking(get_api_key)
+                .await
+                .map_err(|err| format!("Keychain task failed: {err}"))??
+                .ok_or_else(|| {
+                    "Web Search is on but no Ollama API key is configured. Add one in Settings."
+                        .to_string()
+                })?;
             let results = web_search(&self.http, &api_key, instruction).await?;
             Some(format_results_for_prompt(&results))
         } else {
@@ -355,24 +366,54 @@ impl OllamaClient {
         let mut buffer = String::new();
         let mut full_text = String::new();
 
-        while let Some(chunk) = byte_stream.next().await {
+        loop {
+            // Checked every poll tick, not just when a chunk actually arrives — a stalled
+            // connection (model hung, Ollama process wedged) would otherwise block on
+            // `byte_stream.next()` forever and never notice a Cancel click until
+            // `GENERATION_TIMEOUT` eventually fires.
             if cancel.load(Ordering::Relaxed) {
                 // Dropping `byte_stream`/`response` here (function return) closes the
                 // connection; Ollama notices and stops generating on its end too.
                 return Err("Generation cancelled".to_string());
             }
 
+            let next = match tokio::time::timeout(STREAM_POLL_INTERVAL, byte_stream.next()).await
+            {
+                Ok(next) => next,
+                Err(_) => continue, // no data within this tick — loop back and recheck cancel
+            };
+
+            let Some(chunk) = next else {
+                break; // stream ended
+            };
+
             let chunk = chunk.map_err(|err| format!("Stream error: {err}"))?;
             buffer.push_str(&String::from_utf8_lossy(&chunk));
 
             for parsed in drain_complete_lines(&mut buffer)? {
+                if let Some(error) = parsed.error {
+                    return Err(format!("Ollama reported an error: {error}"));
+                }
+
                 if let Some(message) = parsed.message {
                     if let Some(thinking) = message.thinking.filter(|text| !text.is_empty()) {
-                        let _ = app.emit(GENERATION_THINKING_EVENT, &thinking);
+                        let _ = app.emit(
+                            GENERATION_THINKING_EVENT,
+                            GenerationEvent {
+                                id: generation_id,
+                                chunk: &thinking,
+                            },
+                        );
                     }
                     if !message.content.is_empty() {
                         full_text.push_str(&message.content);
-                        let _ = app.emit(GENERATION_CHUNK_EVENT, &message.content);
+                        let _ = app.emit(
+                            GENERATION_CHUNK_EVENT,
+                            GenerationEvent {
+                                id: generation_id,
+                                chunk: &message.content,
+                            },
+                        );
                     }
                 }
 
@@ -437,6 +478,7 @@ pub fn cancel_generation(client: tauri::State<'_, OllamaClient>) {
 pub async fn generate_edit(
     app: AppHandle,
     client: tauri::State<'_, OllamaClient>,
+    generation_id: String,
     model: String,
     markdown: String,
     instruction: String,
@@ -448,6 +490,7 @@ pub async fn generate_edit(
     client
         .generate_edit(
             &app,
+            &generation_id,
             model,
             &markdown,
             &instruction,
@@ -502,6 +545,27 @@ mod tests {
         assert_eq!(lines.len(), 1);
         assert!(lines[0].done);
         assert_eq!(buffer, "");
+    }
+
+    /// A normal NDJSON line has no `error` field, so it must default to `None` rather than
+    /// failing to parse — this is what lets `error: Option<String>` be added without breaking
+    /// every existing stream sample.
+    #[test]
+    fn lines_without_an_error_field_default_to_none() {
+        let mut buffer = String::from("{\"message\":{\"content\":\"hi\"},\"done\":false}\n");
+        let lines = drain_complete_lines(&mut buffer).expect("should parse");
+        assert_eq!(lines[0].error, None);
+    }
+
+    /// Ollama can emit a mid-stream error line after the HTTP status was already a successful
+    /// 200 (e.g. the model crashed partway through). It must be recognized as an error rather
+    /// than silently ignored as a contentless line — a caller checks `parsed.error` per drained
+    /// line and turns it into an `Err` instead of treating the generation as having succeeded.
+    #[test]
+    fn a_mid_stream_error_line_parses_with_its_message() {
+        let mut buffer = String::from("{\"error\":\"model runner crashed\",\"done\":true}\n");
+        let lines = drain_complete_lines(&mut buffer).expect("should parse");
+        assert_eq!(lines[0].error.as_deref(), Some("model runner crashed"));
     }
 
     #[test]

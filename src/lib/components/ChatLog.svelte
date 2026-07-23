@@ -114,7 +114,7 @@
 		{#if conversationState.turns.length === 0}
 			<p class="text-sm text-neutral-400 dark:text-neutral-500">
 				{noFileSelected
-					? 'Select a file from the sidebar to get started.'
+					? 'Select a Markdown file from the sidebar to start chatting.'
 					: 'Describe a change below to get started.'}
 			</p>
 		{/if}
@@ -136,6 +136,7 @@
 					/>
 					<button
 						title="Remove"
+						aria-label="Remove attached image"
 						onclick={() => removeImage(index)}
 						class="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-neutral-700 text-white hover:bg-neutral-600 dark:bg-neutral-500 dark:hover:bg-neutral-400"
 					>
@@ -154,6 +155,7 @@
 			title={sessionState.modelSupportsVision
 				? 'Attach an image'
 				: 'This model does not support vision'}
+			aria-label="Attach an image"
 			disabled={attachDisabled}
 			onclick={addImages}
 			class="flex shrink-0 items-center rounded-xl p-2 text-neutral-500 transition-colors duration-150 hover:bg-neutral-900/5 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-white/[0.06]"

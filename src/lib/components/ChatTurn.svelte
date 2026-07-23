@@ -2,6 +2,7 @@
 	import type { ConversationTurn } from '$lib/stores/conversation.svelte';
 	import { sessionState } from '$lib/stores/session.svelte';
 	import { toDataUrl } from '$lib/images';
+	import { renderMarkdown } from '$lib/markdown';
 
 	let { turn }: { turn: ConversationTurn } = $props();
 
@@ -16,6 +17,7 @@
 		if (turn.status !== 'generating') {
 			return (
 				{
+					done: 'Answered',
 					reviewing: 'Ready to review',
 					applied: 'Applied',
 					discarded: 'Discarded',
@@ -97,6 +99,17 @@
 					{turn.thinkingText}
 				</p>
 			{/if}
+		</div>
+	{/if}
+
+	{#if turn.mode === 'chat' && turn.responseText}
+		<div class="flex justify-start">
+			<div
+				class="markdown-preview max-w-[85%] rounded-2xl bg-neutral-100 px-3 py-2 text-sm text-neutral-800 dark:bg-white/5 dark:text-neutral-200"
+			>
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -- renderMarkdown sanitizes via DOMPurify, see $lib/markdown.ts -->
+				{@html renderMarkdown(turn.responseText)}
+			</div>
 		</div>
 	{/if}
 

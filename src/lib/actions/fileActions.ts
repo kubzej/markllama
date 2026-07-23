@@ -1,6 +1,7 @@
 import { documentState } from '$lib/stores/document.svelte';
 import { conversationState } from '$lib/stores/conversation.svelte';
 import { projectState } from '$lib/stores/project.svelte';
+import { chatsState } from '$lib/stores/chats.svelte';
 import { uiState } from '$lib/stores/ui.svelte';
 import {
 	pickAndOpenDocument,
@@ -54,6 +55,7 @@ export async function openDocument(): Promise<void> {
 	const opened = await pickAndOpenDocument();
 	if (!opened) return;
 	projectState.close();
+	chatsState.clear();
 	documentState.load(opened.path, opened.content);
 	conversationState.reset();
 }
@@ -69,6 +71,9 @@ export async function openFolder(): Promise<void> {
 		projectState.open(dir, tree);
 		documentState.reset();
 		conversationState.reset();
+		chatsState.clear();
+		await chatsState.refresh();
+		await chatsState.restoreLastActive();
 	} catch (err) {
 		projectState.error = err instanceof Error ? err.message : String(err);
 	} finally {
@@ -76,13 +81,17 @@ export async function openFolder(): Promise<void> {
 	}
 }
 
+/**
+ * Switching files does NOT reset the chat — a project-scoped chat is meant to survive moving
+ * between the files it discusses. It's only ever reset by starting/loading a different chat
+ * (`chatsState.newChat`/`switchChat`) or by leaving project mode entirely (`openDocument`).
+ */
 export async function switchActiveFile(path: string): Promise<void> {
 	if (path === documentState.path) return;
 	if ((await confirmDiscardIfDirty()) === 'cancel') return;
 	cancelActiveGenerationIfAny();
 	const content = await readDocument(path);
 	documentState.load(path, content);
-	conversationState.reset();
 }
 
 /**

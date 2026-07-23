@@ -36,10 +36,9 @@ function createSessionState() {
 
 	/**
 	 * Returns the underlying save so callers that show a "Saved" confirmation (e.g.
-	 * `ModelNoteEditor`) can await it and only claim success once the write actually completed —
-	 * previously this was fire-and-forget everywhere, so a failed write (disk full, permission
-	 * issue) still showed "Saved" to the user. Callers that don't need to react to failure can
-	 * keep treating it as fire-and-forget by not awaiting it.
+	 * `ModelNoteEditor`) can await it and only claim success once the write actually completed.
+	 * Callers that don't need to react to failure can keep treating it as fire-and-forget by not
+	 * awaiting it.
 	 */
 	function persistPreferences(): Promise<void> {
 		if (!preferencesLoaded) return Promise.resolve();

@@ -1,3 +1,4 @@
+mod chat;
 mod diff;
 mod fs;
 mod menu;
@@ -22,13 +23,19 @@ pub fn run() {
       ollama::client::ollama_supports_thinking,
       ollama::client::ollama_supports_vision,
       ollama::client::ollama_get_model_info,
-      ollama::client::generate_edit,
+      ollama::client::generate_chat_turn,
       ollama::client::cancel_generation,
       diff::engine::diff_documents,
       settings::store::get_settings,
       settings::store::set_settings,
       settings::keychain::save_web_search_api_key,
       settings::keychain::has_web_search_api_key,
+      chat::store::list_chats,
+      chat::store::load_chat,
+      chat::store::save_chat,
+      chat::store::delete_chat,
+      chat::store::get_last_active_chat_id,
+      chat::store::set_last_active_chat_id,
     ])
     .setup(|app| {
       // Registered unconditionally, not just in debug builds — this is the app's only

@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-use super::prompt::build_edit_request;
+use super::prompt::{build_chat_request, build_write_request, ChatContext, ChatMessage};
 use super::websearch::{format_results_for_prompt, web_search};
 use crate::settings::keychain::get_api_key;
 
@@ -23,6 +23,7 @@ const GENERATION_TIMEOUT: Duration = Duration::from_secs(600);
 const STREAM_POLL_INTERVAL: Duration = Duration::from_millis(500);
 const GENERATION_CHUNK_EVENT: &str = "generation:chunk";
 const GENERATION_THINKING_EVENT: &str = "generation:thinking";
+const GENERATION_PROMPT_EVAL_EVENT: &str = "generation:promptEvalCount";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OllamaModel {
@@ -86,6 +87,8 @@ struct ChatStreamLine {
     done: bool,
     #[serde(default)]
     error: Option<String>,
+    #[serde(default)]
+    prompt_eval_count: Option<u32>,
 }
 
 /// Emitted payloads for `generation:chunk`/`generation:thinking`. Tagged with the generation's id
@@ -99,11 +102,63 @@ struct GenerationEvent<'a> {
     chunk: &'a str,
 }
 
+/// Emitted once, when Ollama reports how many prompt tokens the just-completed request actually
+/// used — a real number to replace the frontend's pre-send character-based estimate once a turn
+/// finishes.
+#[derive(Serialize, Clone)]
+struct PromptEvalEvent<'a> {
+    id: &'a str,
+    count: u32,
+}
+
 #[derive(Debug, Deserialize)]
 struct ChatStreamMessage {
     content: String,
     #[serde(default)]
     thinking: Option<String>,
+}
+
+/// One message in `GenerateChatTurnRequest.history` — the frontend has already compacted this
+/// (e.g. a past "write" turn becomes a short marker, not its full document text) before sending
+/// it; this module doesn't interpret history, only relays it into the request unchanged.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessageInput {
+    pub role: String,
+    pub content: String,
+    #[serde(default)]
+    pub images: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachedFileInput {
+    pub path: String,
+    pub content: String,
+}
+
+/// A single struct rather than a long positional parameter list for the same reason
+/// `ollama/prompt.rs`'s `ChatContext` is a struct — this command has grown once already
+/// (`generate_edit` → this) and a struct keeps the next addition from being another silent
+/// positional insertion.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerateChatTurnRequest {
+    pub generation_id: String,
+    pub model: String,
+    /// `"chat"` (plain conversational reply) or `"write"` (diffed against `target_document`).
+    pub mode: String,
+    #[serde(default)]
+    pub history: Vec<ChatMessageInput>,
+    pub target_document: Option<String>,
+    #[serde(default)]
+    pub attached_files: Vec<AttachedFileInput>,
+    pub instruction: String,
+    #[serde(default)]
+    pub images: Vec<String>,
+    pub num_ctx: Option<u32>,
+    pub thinking: bool,
+    pub web_search: bool,
 }
 
 /// Drains complete NDJSON lines out of `buffer`, leaving any trailing partial line (a chunk can
@@ -159,7 +214,7 @@ pub struct OllamaClient {
     http: reqwest::Client,
     /// Flag for the currently in-flight generation, if any. Only one generation runs at a time
     /// (the UI disables Send while busy), so a single slot is enough — a fresh flag replaces the
-    /// old one at the start of each `generate_edit` call.
+    /// old one at the start of each `generate_chat_turn` call.
     cancel_flag: Mutex<Option<Arc<AtomicBool>>>,
 }
 
@@ -264,39 +319,20 @@ impl OllamaClient {
         })
     }
 
-    /// Sends the single-turn `{ system, markdown, instruction, images }` request and streams the
-    /// response as `generation:chunk` (and, when `thinking` is enabled, `generation:thinking`)
-    /// events. Returns the full assembled answer text once Ollama reports `done` — the thinking
-    /// trace is never included in the returned text.
-    pub async fn generate_edit(
+    /// Sends a chat-turn request (either a plain conversational "chat" turn, or a "write" turn
+    /// diffed against a target document — see `ollama/prompt.rs`) and streams the response as
+    /// `generation:chunk`/`generation:thinking` events, plus a one-shot `generation:promptEvalCount`
+    /// once Ollama reports how many prompt tokens it actually used. Returns the full assembled
+    /// answer text once Ollama reports `done` — the thinking trace is never included in it.
+    pub async fn generate_chat_turn(
         &self,
         app: &AppHandle,
-        generation_id: &str,
-        model: String,
-        markdown: &str,
-        instruction: &str,
-        images: Vec<String>,
-        num_ctx: Option<u32>,
-        thinking: bool,
-        web_search_enabled: bool,
+        request: GenerateChatTurnRequest,
     ) -> Result<String, String> {
         let cancel = Arc::new(AtomicBool::new(false));
         *self.cancel_flag.lock().unwrap() = Some(cancel.clone());
 
-        let result = self
-            .generate_edit_inner(
-                app,
-                generation_id,
-                model,
-                markdown,
-                instruction,
-                images,
-                num_ctx,
-                thinking,
-                web_search_enabled,
-                &cancel,
-            )
-            .await;
+        let result = self.generate_chat_turn_inner(app, &request, &cancel).await;
 
         // Only clear the slot if it still points to *this* generation's flag — a newer
         // generation may already have replaced it (e.g. this one was cancelled in favor of a
@@ -310,20 +346,13 @@ impl OllamaClient {
         result
     }
 
-    async fn generate_edit_inner(
+    async fn generate_chat_turn_inner(
         &self,
         app: &AppHandle,
-        generation_id: &str,
-        model: String,
-        markdown: &str,
-        instruction: &str,
-        images: Vec<String>,
-        num_ctx: Option<u32>,
-        thinking: bool,
-        web_search_enabled: bool,
+        request: &GenerateChatTurnRequest,
         cancel: &Arc<AtomicBool>,
     ) -> Result<String, String> {
-        let web_context = if web_search_enabled {
+        let web_context = if request.web_search {
             // Keychain access can block on a macOS permission prompt (see settings/keychain.rs) —
             // must not tie up this async worker thread while waiting on it.
             let api_key = tauri::async_runtime::spawn_blocking(get_api_key)
@@ -333,26 +362,51 @@ impl OllamaClient {
                     "Web Search is on but no Ollama API key is configured. Add one in Settings."
                         .to_string()
                 })?;
-            let results = web_search(&self.http, &api_key, instruction).await?;
+            let results = web_search(&self.http, &api_key, &request.instruction).await?;
             Some(format_results_for_prompt(&results))
         } else {
             None
         };
 
-        let request = build_edit_request(
-            model,
-            markdown,
-            instruction,
-            images,
-            num_ctx,
-            thinking,
-            web_context.as_deref(),
-        );
+        let history: Vec<ChatMessage> = request
+            .history
+            .iter()
+            .map(|m| ChatMessage {
+                role: m.role.clone(),
+                content: m.content.clone(),
+                images: m.images.clone(),
+            })
+            .collect();
+        let attached_files: Vec<(String, String)> = request
+            .attached_files
+            .iter()
+            .map(|f| (f.path.clone(), f.content.clone()))
+            .collect();
+
+        let ctx = ChatContext {
+            history,
+            attached_files,
+            images: request.images.clone(),
+            instruction: request.instruction.clone(),
+            num_ctx: request.num_ctx,
+            thinking: request.thinking,
+            web_context,
+        };
+
+        let chat_request = if request.mode == "write" {
+            build_write_request(
+                request.model.clone(),
+                request.target_document.as_deref().unwrap_or(""),
+                ctx,
+            )
+        } else {
+            build_chat_request(request.model.clone(), ctx)
+        };
 
         let response = self
             .http
             .post(format!("{OLLAMA_BASE_URL}/api/chat"))
-            .json(&request)
+            .json(&chat_request)
             .timeout(GENERATION_TIMEOUT)
             .send()
             .await
@@ -400,7 +454,7 @@ impl OllamaClient {
                         let _ = app.emit(
                             GENERATION_THINKING_EVENT,
                             GenerationEvent {
-                                id: generation_id,
+                                id: &request.generation_id,
                                 chunk: &thinking,
                             },
                         );
@@ -410,7 +464,7 @@ impl OllamaClient {
                         let _ = app.emit(
                             GENERATION_CHUNK_EVENT,
                             GenerationEvent {
-                                id: generation_id,
+                                id: &request.generation_id,
                                 chunk: &message.content,
                             },
                         );
@@ -418,6 +472,15 @@ impl OllamaClient {
                 }
 
                 if parsed.done {
+                    if let Some(count) = parsed.prompt_eval_count {
+                        let _ = app.emit(
+                            GENERATION_PROMPT_EVAL_EVENT,
+                            PromptEvalEvent {
+                                id: &request.generation_id,
+                                count,
+                            },
+                        );
+                    }
                     return Ok(full_text);
                 }
             }
@@ -475,31 +538,12 @@ pub fn cancel_generation(client: tauri::State<'_, OllamaClient>) {
 }
 
 #[tauri::command]
-pub async fn generate_edit(
+pub async fn generate_chat_turn(
     app: AppHandle,
     client: tauri::State<'_, OllamaClient>,
-    generation_id: String,
-    model: String,
-    markdown: String,
-    instruction: String,
-    images: Vec<String>,
-    num_ctx: Option<u32>,
-    thinking: bool,
-    web_search: bool,
+    request: GenerateChatTurnRequest,
 ) -> Result<String, String> {
-    client
-        .generate_edit(
-            &app,
-            &generation_id,
-            model,
-            &markdown,
-            &instruction,
-            images,
-            num_ctx,
-            thinking,
-            web_search,
-        )
-        .await
+    client.generate_chat_turn(&app, request).await
 }
 
 #[cfg(test)]
@@ -615,6 +659,24 @@ mod tests {
 
         assert_eq!(thinking_text, "Let me think about it.");
         assert_eq!(full_text, "Done.");
+    }
+
+    /// The final `done` line can carry a real `prompt_eval_count` — must parse and be available
+    /// for the caller to turn into the one-shot `generation:promptEvalCount` event.
+    #[test]
+    fn done_line_with_prompt_eval_count_parses_it() {
+        let mut buffer = String::from(
+            "{\"message\":{\"content\":\"\"},\"done\":true,\"prompt_eval_count\":1234}\n",
+        );
+        let lines = drain_complete_lines(&mut buffer).expect("should parse");
+        assert_eq!(lines[0].prompt_eval_count, Some(1234));
+    }
+
+    #[test]
+    fn done_line_without_prompt_eval_count_defaults_to_none() {
+        let mut buffer = String::from("{\"message\":{\"content\":\"\"},\"done\":true}\n");
+        let lines = drain_complete_lines(&mut buffer).expect("should parse");
+        assert_eq!(lines[0].prompt_eval_count, None);
     }
 
     #[test]

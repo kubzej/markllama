@@ -1,13 +1,16 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use similar::{DiffOp, TextDiff};
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WordSpan {
     pub text: String,
     pub changed: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+/// `Deserialize` is needed alongside `Serialize` because a `DiffLine` isn't just sent to the
+/// frontend anymore — a "write" chat turn's diff gets persisted to disk (`chat/store.rs`) and
+/// read back when a saved chat is reloaded.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum DiffLine {
     Unchanged { text: String },

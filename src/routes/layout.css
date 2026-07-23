@@ -37,3 +37,101 @@ body {
 	}
 }
 
+/*
+ * Shared rendering for sanitized markdown (`$lib/markdown.ts`'s `renderMarkdown`) wherever it's
+ * shown as HTML rather than source — the Editor's Preview mode and chat-mode assistant replies
+ * in ChatTurn.svelte both apply this class, so it lives globally instead of duplicated per file.
+ */
+.markdown-preview h1 {
+	font-size: 1.6em;
+	font-weight: 700;
+	margin: 0.9em 0 0.4em;
+	line-height: 1.3;
+}
+.markdown-preview h2 {
+	font-size: 1.3em;
+	font-weight: 700;
+	margin: 0.9em 0 0.4em;
+	line-height: 1.3;
+}
+.markdown-preview h3 {
+	font-size: 1.1em;
+	font-weight: 600;
+	margin: 0.8em 0 0.4em;
+}
+.markdown-preview h1:first-child,
+.markdown-preview h2:first-child,
+.markdown-preview h3:first-child {
+	margin-top: 0;
+}
+.markdown-preview p {
+	margin: 0.6em 0;
+	line-height: 1.65;
+}
+.markdown-preview ul {
+	margin: 0.6em 0;
+	padding-left: 1.4em;
+	list-style: disc;
+}
+.markdown-preview ol {
+	margin: 0.6em 0;
+	padding-left: 1.4em;
+	list-style: decimal;
+}
+.markdown-preview li {
+	margin: 0.25em 0;
+	line-height: 1.6;
+}
+.markdown-preview a {
+	color: var(--color-accent);
+	text-decoration: underline;
+}
+.markdown-preview strong {
+	font-weight: 600;
+}
+.markdown-preview code {
+	font-family: var(--font-mono);
+	background: var(--editor-selection);
+	padding: 0.15em 0.4em;
+	border-radius: 4px;
+	font-size: 0.9em;
+}
+.markdown-preview pre {
+	background: var(--editor-selection);
+	padding: 0.8em 1em;
+	border-radius: 10px;
+	overflow-x: auto;
+	margin: 0.8em 0;
+}
+.markdown-preview pre code {
+	background: none;
+	padding: 0;
+}
+.markdown-preview blockquote {
+	border-left: 3px solid var(--color-accent);
+	padding-left: 1em;
+	margin: 0.8em 0;
+	opacity: 0.85;
+}
+.markdown-preview hr {
+	border: none;
+	border-top: 1px solid currentColor;
+	opacity: 0.15;
+	margin: 1.4em 0;
+}
+.markdown-preview table {
+	border-collapse: collapse;
+	margin: 0.8em 0;
+	font-size: 0.95em;
+}
+.markdown-preview th,
+.markdown-preview td {
+	border: 1px solid var(--editor-selection);
+	padding: 0.4em 0.8em;
+	text-align: left;
+}
+.markdown-preview img {
+	max-width: 100%;
+	border-radius: 8px;
+}
+

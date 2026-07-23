@@ -10,19 +10,7 @@
   <img src="https://img.shields.io/badge/license-MIT-CC5F40" alt="MIT License">
 </p>
 
-A lightweight bridge between [Ollama](https://ollama.com) and your Markdown files, with web
-search and thinking-model support built in. Point it at a `.md` file, or a whole folder of them,
-for brainstorming, planning, or quick research — write an instruction, Generate, and review the
-answer as a diff against the document. Nothing is applied or saved until you say so. Markdown is
-the new programming language; this is an editor for it.
-
-Local inference is free, but it's not fast — and it gets slower the more context you hand it. So
-every request stays as small as it can possibly be: a fixed system prompt, the current document,
-and your instruction. Nothing more — no accumulated chat history, no whole-project context, no
-agentic planning step. Every Generate is one fresh, single-turn request built from whatever's on
-screen right now, no matter how long you've been chatting or how many files are in the folder.
-The chat log is local and disposable, for your own reference only — it's never fed back into a
-prompt.
+A lightweight, local-first bridge between Ollama and your Markdown files. It runs on models you already have pulled and keeps their context as small as the job needs. Built for working with Markdown with AI's help — not running an agent. Web search and thinking-model support included.
 
 ## Requirements
 
@@ -35,15 +23,15 @@ prompt.
 
 ## Development
 
-| Command | What it does |
-| --- | --- |
-| `npm install` | Installs frontend dependencies. |
-| `npm run tauri dev` | Runs the app with hot reload (starts the Vite dev server + Tauri). |
-| `npm run check` | Type-checks the Svelte/TypeScript frontend. |
-| `npm run lint` | Prettier + ESLint over the frontend. |
-| `cargo check` (in `src-tauri/`) | Type-checks the Rust backend. |
-| `cargo test` (in `src-tauri/`) | Runs the Rust test suite (Ollama client, diff engine, settings, project scan). |
-| `npm run tauri build` | Produces a release `.app`/`.dmg` in `src-tauri/target/release/bundle/`. |
+| Command                         | What it does                                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------------------------- |
+| `npm install`                   | Installs frontend dependencies.                                                              |
+| `npm run tauri dev`             | Runs the app with hot reload (starts the Vite dev server + Tauri).                           |
+| `npm run check`                 | Type-checks the Svelte/TypeScript frontend.                                                  |
+| `npm run lint`                  | Prettier + ESLint over the frontend.                                                         |
+| `cargo check` (in `src-tauri/`) | Type-checks the Rust backend.                                                                |
+| `cargo test` (in `src-tauri/`)  | Runs the Rust test suite (Ollama client, diff engine, settings, project scan, chat storage). |
+| `npm run tauri build`           | Produces a release `.app`/`.dmg` in `src-tauri/target/release/bundle/`.                      |
 
 ## License
 

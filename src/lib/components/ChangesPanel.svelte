@@ -6,14 +6,11 @@
 
 	const activeTurn = $derived(conversationState.activeTurn);
 
-	let confirmingDiscard = $state(false);
-	let confirmingDiscardHandle: ReturnType<typeof setTimeout> | undefined;
 	let applying = $state(false);
 	let applyError = $state<string | null>(null);
 
 	// Mirrors ChatTurn's own generating-status label so the Changes panel doesn't look dead while
-	// a generation is actually in progress right next to it — previously this panel just showed
-	// the static empty-state message the entire time, with no visible sign anything was happening.
+	// a generation is actually in progress right next to it.
 	const generatingLabel = $derived.by(() => {
 		if (activeTurn?.status !== 'generating') return null;
 		if (activeTurn.answerLength > 0) return 'Writing…';
@@ -45,24 +42,11 @@
 		}
 	}
 
-	function handleDiscardClick() {
-		if (!confirmingDiscard) {
-			confirmingDiscard = true;
-			clearTimeout(confirmingDiscardHandle);
-			confirmingDiscardHandle = setTimeout(() => (confirmingDiscard = false), 3000);
-			return;
-		}
-		clearTimeout(confirmingDiscardHandle);
-		confirmingDiscard = false;
-		conversationState.discardActive();
-	}
-
 	$effect(() => {
 		// Reset transient per-turn state whenever the active turn changes out from under it (a
-		// new turn started, etc.) so a stale "Confirm discard?" or a previous apply's save error
-		// never lingers on screen for the wrong turn.
+		// new turn started, etc.) so a previous apply's save error never lingers on screen for
+		// the wrong turn.
 		void activeTurn?.id;
-		confirmingDiscard = false;
 		applyError = null;
 	});
 </script>
@@ -101,12 +85,10 @@
 			class="flex items-center justify-end gap-2 border-t border-neutral-200/70 px-3.5 py-2.5 dark:border-white/[0.06]"
 		>
 			<button
-				class="rounded-lg px-2.5 py-1.5 text-sm transition-colors duration-150 {confirmingDiscard
-					? 'bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50'
-					: 'text-neutral-600 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]'}"
-				onclick={handleDiscardClick}
+				class="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
+				onclick={() => conversationState.discardActive()}
 			>
-				{confirmingDiscard ? 'Confirm discard?' : 'Discard'}
+				Discard
 			</button>
 			<button
 				class="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-accent-dark"

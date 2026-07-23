@@ -160,6 +160,7 @@ function createConversationState() {
 		images: ImageAttachment[],
 		candidateFiles: AttachedFile[],
 		numCtx: number | null,
+		behaviorInstruction: string | null,
 		thinking: boolean,
 		webSearch: boolean
 	): Promise<void> {
@@ -195,6 +196,7 @@ function createConversationState() {
 				targetDocument: null,
 				attachedFiles: filesToSend,
 				instruction,
+				behaviorInstruction,
 				images: images.map((image) => image.base64),
 				numCtx,
 				thinking,
@@ -229,6 +231,7 @@ function createConversationState() {
 		images: ImageAttachment[],
 		candidateFiles: AttachedFile[],
 		numCtx: number | null,
+		behaviorInstruction: string | null,
 		thinking: boolean,
 		webSearch: boolean
 	): Promise<void> {
@@ -261,6 +264,7 @@ function createConversationState() {
 				targetDocument: targetContent,
 				attachedFiles: filesToSend,
 				instruction,
+				behaviorInstruction,
 				images: images.map((image) => image.base64),
 				numCtx,
 				thinking,

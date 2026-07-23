@@ -5,14 +5,23 @@ export interface ModelNote {
 	description: string;
 }
 
+export interface InstructionPreset {
+	id: string;
+	name: string;
+	text: string;
+}
+
 export interface Settings {
 	lastModel: string | null;
 	thinkingDefault: boolean;
 	webSearchDefault: boolean;
+	selectedInstructionId: string | null;
 	/** Keyed by exact Ollama model name — purely local organization, see `ModelNote`. */
 	modelNotes: Record<string, ModelNote>;
 	/** Keyed by exact Ollama model name — absent entry means "use Ollama's own default". */
 	numCtxOverrides: Record<string, number>;
+	/** User-managed behavior instructions, selected independently from the model. */
+	instructionPresets: InstructionPreset[];
 }
 
 /**

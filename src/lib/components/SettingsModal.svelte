@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { saveWebSearchApiKey } from '$lib/tauri/settings';
 	import { sessionState } from '$lib/stores/session.svelte';
+	import InstructionPresetEditor from './InstructionPresetEditor.svelte';
 	import ModelNoteEditor from './ModelNoteEditor.svelte';
 
 	let { open = $bindable(false) } = $props();
@@ -119,6 +120,49 @@
 										: 'Save key'}
 						</button>
 					</div>
+				</section>
+
+				<section class="rounded-lg bg-[var(--surface-muted)] p-4">
+					<div class="mb-3 flex items-start justify-between gap-3">
+						<div>
+							<h3 class="mb-0.5 text-xs font-medium text-[var(--text-secondary)]">Instructions</h3>
+							<p class="text-xs text-[var(--text-muted)]">
+								Create short behavior presets for the model. Select one from the toolbar, or choose
+								No instructions to send nothing extra. Saved automatically as you type.
+							</p>
+						</div>
+						<button
+							type="button"
+							onclick={() => sessionState.createInstructionPreset()}
+							class="flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-2.5 py-1.5 text-sm font-medium text-white transition-colors duration-150 hover:bg-accent-dark"
+						>
+							<svg
+								viewBox="0 0 24 24"
+								class="size-3.5"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+							>
+								<path d="M12 5v14" />
+								<path d="M5 12h14" />
+							</svg>
+							New
+						</button>
+					</div>
+					{#if sessionState.instructionPresets.length === 0}
+						<p
+							class="rounded-lg bg-[var(--surface-bg)] p-3 text-xs text-[var(--text-muted)] ring-1 ring-[var(--surface-ring)]"
+						>
+							No instruction presets yet. The toolbar will still offer No instructions.
+						</p>
+					{:else}
+						<div class="max-h-72 space-y-2 overflow-y-auto pr-1">
+							{#each sessionState.instructionPresets as preset (preset.id)}
+								<InstructionPresetEditor {preset} />
+							{/each}
+						</div>
+					{/if}
 				</section>
 
 				<section class="rounded-lg bg-[var(--surface-muted)] p-4">

@@ -115,6 +115,14 @@ body {
 		overflow-wrap: anywhere;
 	}
 
+	.instruction-selector-preview {
+		display: -webkit-box;
+		overflow: hidden;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		white-space: normal;
+	}
+
 	@media (max-width: 1180px) {
 		.toolbar-collapsible-label {
 			display: none;

@@ -9,6 +9,7 @@
 	import Logo from './Logo.svelte';
 	import OllamaStatus from './OllamaStatus.svelte';
 	import ModelSelector from './ModelSelector.svelte';
+	import InstructionSelector from './InstructionSelector.svelte';
 	import ThinkingToggle from './ThinkingToggle.svelte';
 	import WebSearchToggle from './WebSearchToggle.svelte';
 	import SettingsModal from './SettingsModal.svelte';
@@ -174,6 +175,7 @@
 	<div class="flex min-w-0 shrink-0 items-center gap-1.5 whitespace-nowrap">
 		<OllamaStatus />
 		<ModelSelector />
+		<InstructionSelector />
 		<ThinkingToggle />
 		<WebSearchToggle />
 	</div>

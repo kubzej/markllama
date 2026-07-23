@@ -76,6 +76,7 @@ export interface GenerateChatTurnParams {
 	targetDocument: string | null;
 	attachedFiles: AttachedFileInput[];
 	instruction: string;
+	behaviorInstruction: string | null;
 	images: string[];
 	numCtx: number | null;
 	thinking: boolean;
@@ -102,6 +103,7 @@ export async function generateChatTurn(params: GenerateChatTurnParams): Promise<
 		targetDocument,
 		attachedFiles,
 		instruction,
+		behaviorInstruction,
 		images,
 		numCtx,
 		thinking,
@@ -134,6 +136,7 @@ export async function generateChatTurn(params: GenerateChatTurnParams): Promise<
 				targetDocument,
 				attachedFiles,
 				instruction,
+				behaviorInstruction,
 				images,
 				numCtx,
 				thinking,

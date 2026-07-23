@@ -5,10 +5,16 @@ import {
 	supportsVision,
 	type OllamaModel
 } from '$lib/tauri/ollama';
-import { getSettings, setSettings, hasWebSearchApiKey, type ModelNote } from '$lib/tauri/settings';
+import {
+	getSettings,
+	setSettings,
+	hasWebSearchApiKey,
+	type ModelNote,
+	type InstructionPreset
+} from '$lib/tauri/settings';
 
 export type OllamaStatus = 'checking' | 'connected' | 'disconnected';
-export type { ModelNote };
+export type { ModelNote, InstructionPreset };
 
 function createSessionState() {
 	let status = $state<OllamaStatus>('checking');
@@ -23,6 +29,8 @@ function createSessionState() {
 	let modelNotes = $state<Record<string, ModelNote>>({});
 	/** Keyed by exact Ollama model name — absent entry means "use Ollama's own default". */
 	let numCtxOverrides = $state<Record<string, number>>({});
+	let selectedInstructionId = $state<string | null>(null);
+	let instructionPresets = $state<InstructionPreset[]>([]);
 	let preferencesLoaded = $state(false);
 
 	async function refreshApiKeyStatus() {
@@ -46,8 +54,10 @@ function createSessionState() {
 			lastModel: selectedModel,
 			thinkingDefault: thinkingEnabled,
 			webSearchDefault: webSearchEnabled,
+			selectedInstructionId,
 			modelNotes,
-			numCtxOverrides
+			numCtxOverrides,
+			instructionPresets
 		});
 	}
 
@@ -66,6 +76,12 @@ function createSessionState() {
 		webSearchEnabled = saved.webSearchDefault;
 		modelNotes = saved.modelNotes ?? {};
 		numCtxOverrides = saved.numCtxOverrides ?? {};
+		instructionPresets = saved.instructionPresets ?? [];
+		selectedInstructionId = instructionPresets.some(
+			(preset) => preset.id === saved.selectedInstructionId
+		)
+			? saved.selectedInstructionId
+			: null;
 		preferencesLoaded = true;
 	}
 
@@ -96,6 +112,36 @@ function createSessionState() {
 		} else {
 			numCtxOverrides = { ...numCtxOverrides, [name]: value };
 		}
+		return persistPreferences();
+	}
+
+	function createInstructionPreset(): Promise<void> {
+		const id = crypto.randomUUID();
+		instructionPresets = [
+			...instructionPresets,
+			{
+				id,
+				name: 'New instruction',
+				text: ''
+			}
+		];
+		selectedInstructionId = id;
+		return persistPreferences();
+	}
+
+	function updateInstructionPreset(
+		id: string,
+		patch: Partial<Omit<InstructionPreset, 'id'>>
+	): Promise<void> {
+		instructionPresets = instructionPresets.map((preset) =>
+			preset.id === id ? { ...preset, ...patch } : preset
+		);
+		return persistPreferences();
+	}
+
+	function deleteInstructionPreset(id: string): Promise<void> {
+		instructionPresets = instructionPresets.filter((preset) => preset.id !== id);
+		if (selectedInstructionId === id) selectedInstructionId = null;
 		return persistPreferences();
 	}
 
@@ -224,10 +270,26 @@ function createSessionState() {
 		get modelNotes() {
 			return modelNotes;
 		},
+		get instructionPresets() {
+			return instructionPresets;
+		},
+		get selectedInstructionId() {
+			return selectedInstructionId;
+		},
+		set selectedInstructionId(id: string | null) {
+			selectedInstructionId = instructionPresets.some((preset) => preset.id === id) ? id : null;
+			persistPreferencesInBackground();
+		},
+		get selectedInstructionPreset() {
+			return instructionPresets.find((preset) => preset.id === selectedInstructionId) ?? null;
+		},
 		getModelNote,
 		setModelNote,
 		getNumCtxOverride,
 		setNumCtxOverride,
+		createInstructionPreset,
+		updateInstructionPreset,
+		deleteInstructionPreset,
 		loadPreferences,
 		refresh,
 		refreshApiKeyStatus

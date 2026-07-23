@@ -15,16 +15,28 @@ pub struct ModelNote {
     pub description: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct InstructionPreset {
+    pub id: String,
+    pub name: String,
+    pub text: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
     pub last_model: Option<String>,
     pub thinking_default: bool,
     pub web_search_default: bool,
+    pub selected_instruction_id: Option<String>,
     pub model_notes: HashMap<String, ModelNote>,
     /// Per-model `num_ctx` override, keyed by exact Ollama model name. Absent entry means "use
     /// Ollama's own default" — never sent to `/api/chat` as an explicit value in that case.
     pub num_ctx_overrides: HashMap<String, u32>,
+    /// User-managed behavior instructions, selected independently from the model. Empty means
+    /// the toolbar still offers "No instructions" and no extra system guidance is sent.
+    pub instruction_presets: Vec<InstructionPreset>,
 }
 
 impl Default for Settings {
@@ -33,8 +45,10 @@ impl Default for Settings {
             last_model: None,
             thinking_default: false,
             web_search_default: false,
+            selected_instruction_id: None,
             model_notes: HashMap::new(),
             num_ctx_overrides: HashMap::new(),
+            instruction_presets: Vec::new(),
         }
     }
 }
@@ -55,8 +69,8 @@ pub fn get_settings(app: AppHandle) -> Result<Settings, String> {
     if !path.exists() {
         return Ok(Settings::default());
     }
-    let raw = std::fs::read_to_string(&path)
-        .map_err(|err| format!("Could not read settings: {err}"))?;
+    let raw =
+        std::fs::read_to_string(&path).map_err(|err| format!("Could not read settings: {err}"))?;
     // A corrupted settings.json (e.g. truncated by a crash mid-write, before the atomic write
     // below existed) should degrade to defaults rather than permanently locking the user out of
     // the app on every subsequent launch.
@@ -129,6 +143,34 @@ mod tests {
         let json = serde_json::to_string(&settings).expect("should serialize");
         let parsed: Settings = serde_json::from_str(&json).expect("should parse");
         assert_eq!(parsed.num_ctx_overrides.get("qwen3.5:9b"), Some(&8192));
+    }
+
+    #[test]
+    fn old_settings_without_instruction_presets_still_parse() {
+        let old = r#"{"lastModel":"qwen3.5:9b","thinkingDefault":true,"webSearchDefault":false}"#;
+        let parsed: Settings = serde_json::from_str(old).expect("should parse");
+        assert!(parsed.instruction_presets.is_empty());
+        assert!(parsed.selected_instruction_id.is_none());
+    }
+
+    #[test]
+    fn instruction_presets_round_trip_through_json() {
+        let mut settings = Settings::default();
+        settings.selected_instruction_id = Some("strict".to_string());
+        settings.instruction_presets.push(InstructionPreset {
+            id: "strict".to_string(),
+            name: "Strict editor".to_string(),
+            text: "Be concise and edit directly.".to_string(),
+        });
+
+        let json = serde_json::to_string(&settings).expect("should serialize");
+        let parsed: Settings = serde_json::from_str(&json).expect("should parse");
+        assert_eq!(parsed.selected_instruction_id, Some("strict".to_string()));
+        assert_eq!(parsed.instruction_presets[0].name, "Strict editor");
+        assert_eq!(
+            parsed.instruction_presets[0].text,
+            "Be concise and edit directly."
+        );
     }
 
     /// Truncated/corrupted JSON (e.g. a crash mid-write) must not fail to deserialize into

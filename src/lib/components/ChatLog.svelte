@@ -150,6 +150,7 @@
 		const images = attachedImages;
 		const files = gatherCandidateFiles(target?.path ?? null);
 		const numCtx = sessionState.getNumCtxOverride(model);
+		const behaviorInstruction = sessionState.selectedInstructionPreset?.text.trim() || null;
 		instruction = '';
 		attachedImages = [];
 		attachedFiles = [];
@@ -165,6 +166,7 @@
 				images,
 				files,
 				numCtx,
+				behaviorInstruction,
 				sessionState.thinkingEnabled,
 				sessionState.webSearchEnabled
 			);
@@ -175,6 +177,7 @@
 				images,
 				files,
 				numCtx,
+				behaviorInstruction,
 				sessionState.thinkingEnabled,
 				sessionState.webSearchEnabled
 			);

@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-use super::prompt::{build_chat_request, build_write_request, ChatContext, ChatMessage};
+use super::prompt::{ChatContext, ChatMessage, build_chat_request, build_write_request};
 use super::websearch::{format_results_for_prompt, web_search};
 use crate::settings::keychain::get_api_key;
 
@@ -156,6 +156,8 @@ pub struct GenerateChatTurnRequest {
     pub instruction: String,
     #[serde(default)]
     pub images: Vec<String>,
+    #[serde(default)]
+    pub behavior_instruction: Option<String>,
     pub num_ctx: Option<u32>,
     pub thinking: bool,
     pub web_search: bool,
@@ -184,7 +186,9 @@ fn drain_complete_lines(buffer: &mut String) -> Result<Vec<ChatStreamLine>, Stri
 
 /// `model_info` keys are architecture-prefixed (e.g. `"qwen3.context_length"`) — search by
 /// suffix rather than constructing the exact key, so this works regardless of model family.
-fn extract_context_length(model_info: &std::collections::HashMap<String, serde_json::Value>) -> Option<u64> {
+fn extract_context_length(
+    model_info: &std::collections::HashMap<String, serde_json::Value>,
+) -> Option<u64> {
     model_info
         .iter()
         .find(|(key, _)| key.ends_with(".context_length"))
@@ -339,7 +343,10 @@ impl OllamaClient {
         // fresh one started before this call had a chance to unwind). Blindly nulling the slot
         // here would silently strand the newer generation's Cancel button.
         let mut guard = self.cancel_flag.lock().unwrap();
-        if guard.as_ref().is_some_and(|current| Arc::ptr_eq(current, &cancel)) {
+        if guard
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(current, &cancel))
+        {
             *guard = None;
         }
         drop(guard);
@@ -388,6 +395,7 @@ impl OllamaClient {
             attached_files,
             images: request.images.clone(),
             instruction: request.instruction.clone(),
+            behavior_instruction: request.behavior_instruction.clone(),
             num_ctx: request.num_ctx,
             thinking: request.thinking,
             web_context,
@@ -431,8 +439,7 @@ impl OllamaClient {
                 return Err("Generation cancelled".to_string());
             }
 
-            let next = match tokio::time::timeout(STREAM_POLL_INTERVAL, byte_stream.next()).await
-            {
+            let next = match tokio::time::timeout(STREAM_POLL_INTERVAL, byte_stream.next()).await {
                 Ok(next) => next,
                 Err(_) => continue, // no data within this tick — loop back and recheck cancel
             };

@@ -31,7 +31,8 @@ change.";
 
 /// Used when "Write to document" is clicked with no fresh instruction typed — the conversation
 /// itself is the instruction in that case.
-const DEFAULT_WRITE_INSTRUCTION: &str = "Based on our conversation, write the complete updated document.";
+const DEFAULT_WRITE_INSTRUCTION: &str =
+    "Based on our conversation, write the complete updated document.";
 
 #[derive(Serialize, Clone)]
 pub struct ChatMessage {
@@ -78,6 +79,7 @@ pub struct ChatContext {
     /// Images attached to *this* turn only (base64, no `data:` prefix).
     pub images: Vec<String>,
     pub instruction: String,
+    pub behavior_instruction: Option<String>,
     pub num_ctx: Option<u32>,
     pub thinking: bool,
     pub web_context: Option<String>,
@@ -98,6 +100,16 @@ fn append_web_context(content: &mut String, web_context: &Option<String>) {
     }
 }
 
+fn system_prompt_with_behavior(base: &str, behavior_instruction: &Option<String>) -> String {
+    let Some(instruction) = behavior_instruction.as_ref().map(|value| value.trim()) else {
+        return base.to_string();
+    };
+    if instruction.is_empty() {
+        return base.to_string();
+    }
+    format!("{base}\n\nAdditional user-selected behavior instructions:\n{instruction}")
+}
+
 /// Builds a request for a plain conversational turn — no document is read or written. See the
 /// module-level context policy above before changing what goes into `messages`.
 pub fn build_chat_request(model: String, ctx: ChatContext) -> ChatRequest {
@@ -107,7 +119,7 @@ pub fn build_chat_request(model: String, ctx: ChatContext) -> ChatRequest {
 
     let mut messages = vec![ChatMessage::new(
         "system",
-        CHAT_SYSTEM_PROMPT.to_string(),
+        system_prompt_with_behavior(CHAT_SYSTEM_PROMPT, &ctx.behavior_instruction),
         Vec::new(),
     )];
     messages.extend(ctx.history);
@@ -138,7 +150,7 @@ pub fn build_write_request(model: String, target_document: &str, ctx: ChatContex
 
     let mut messages = vec![ChatMessage::new(
         "system",
-        WRITE_SYSTEM_PROMPT.to_string(),
+        system_prompt_with_behavior(WRITE_SYSTEM_PROMPT, &ctx.behavior_instruction),
         Vec::new(),
     )];
     messages.extend(ctx.history);
@@ -163,6 +175,7 @@ mod tests {
             attached_files: Vec::new(),
             images: Vec::new(),
             instruction: instruction.to_string(),
+            behavior_instruction: None,
             num_ctx: None,
             thinking: false,
             web_context: None,
@@ -193,14 +206,19 @@ mod tests {
 
         let request_b = build_chat_request("qwen3.5:9b".to_string(), empty_ctx("chat B question"));
 
-        assert!(request_a
-            .messages
-            .iter()
-            .any(|m| m.content.contains("chat A question")));
-        assert!(!request_b
-            .messages
-            .iter()
-            .any(|m| m.content.contains("chat A question") || m.content.contains("chat A answer")));
+        assert!(
+            request_a
+                .messages
+                .iter()
+                .any(|m| m.content.contains("chat A question"))
+        );
+        assert!(
+            !request_b
+                .messages
+                .iter()
+                .any(|m| m.content.contains("chat A question")
+                    || m.content.contains("chat A answer"))
+        );
     }
 
     #[test]
@@ -235,7 +253,10 @@ mod tests {
     #[test]
     fn explicitly_attached_files_are_included_but_only_on_the_new_user_message() {
         let mut ctx = empty_ctx("what does this mean?");
-        ctx.attached_files = vec![("notes.md".to_string(), "# Notes\n\nSome content".to_string())];
+        ctx.attached_files = vec![(
+            "notes.md".to_string(),
+            "# Notes\n\nSome content".to_string(),
+        )];
         let request = build_chat_request("qwen3.5:9b".to_string(), ctx);
 
         assert!(request.messages[0].content.is_empty() == false); // system prompt, sanity check
@@ -259,25 +280,69 @@ mod tests {
 
     #[test]
     fn write_request_with_no_typed_instruction_falls_back_to_a_default() {
-        let request = build_write_request(
-            "qwen3.5:9b".to_string(),
-            "# Existing doc",
-            empty_ctx(""),
-        );
+        let request =
+            build_write_request("qwen3.5:9b".to_string(), "# Existing doc", empty_ctx(""));
         let user_message = &request.messages[1];
         assert!(user_message.content.contains(DEFAULT_WRITE_INSTRUCTION));
+    }
+
+    #[test]
+    fn selected_behavior_instruction_extends_chat_system_prompt_only() {
+        let mut ctx = empty_ctx("latest message");
+        ctx.behavior_instruction = Some("Answer in short Czech paragraphs.".to_string());
+        let request = build_chat_request("qwen3.5:9b".to_string(), ctx);
+
+        assert!(request.messages[0].content.starts_with(CHAT_SYSTEM_PROMPT));
+        assert!(
+            request.messages[0]
+                .content
+                .contains("Additional user-selected behavior instructions:")
+        );
+        assert!(request.messages[0].content.contains("short Czech"));
+        assert_eq!(request.messages[1].content, "latest message");
+    }
+
+    #[test]
+    fn empty_behavior_instruction_is_not_added() {
+        let mut ctx = empty_ctx("latest message");
+        ctx.behavior_instruction = Some("   ".to_string());
+        let request = build_chat_request("qwen3.5:9b".to_string(), ctx);
+
+        assert_eq!(request.messages[0].content, CHAT_SYSTEM_PROMPT);
+    }
+
+    #[test]
+    fn selected_behavior_instruction_extends_write_system_prompt_only() {
+        let mut ctx = empty_ctx("tighten the language");
+        ctx.behavior_instruction = Some("Preserve headings exactly.".to_string());
+        let request = build_write_request("qwen3.5:9b".to_string(), "# Existing doc", ctx);
+
+        assert!(request.messages[0].content.starts_with(WRITE_SYSTEM_PROMPT));
+        assert!(
+            request.messages[0]
+                .content
+                .contains("Preserve headings exactly.")
+        );
+        assert!(request.messages[1].content.contains("tighten the language"));
     }
 
     #[test]
     fn images_attach_only_to_the_new_user_message_not_history_or_system() {
         let mut ctx = empty_ctx("describe this image");
         ctx.images = vec!["base64data".to_string()];
-        ctx.history = vec![ChatMessage::new("user", "earlier text-only message".to_string(), Vec::new())];
+        ctx.history = vec![ChatMessage::new(
+            "user",
+            "earlier text-only message".to_string(),
+            Vec::new(),
+        )];
         let request = build_chat_request("qwen3.5:9b".to_string(), ctx);
 
         assert!(request.messages[0].images.is_empty());
         assert!(request.messages[1].images.is_empty());
-        assert_eq!(request.messages.last().unwrap().images, vec!["base64data".to_string()]);
+        assert_eq!(
+            request.messages.last().unwrap().images,
+            vec!["base64data".to_string()]
+        );
     }
 
     #[test]
@@ -287,7 +352,8 @@ mod tests {
         let with_override = build_chat_request("qwen3.5:9b".to_string(), ctx);
         assert_eq!(with_override.options, Some(ChatOptions { num_ctx: 8192 }));
 
-        let without_override = build_chat_request("qwen3.5:9b".to_string(), empty_ctx("do something"));
+        let without_override =
+            build_chat_request("qwen3.5:9b".to_string(), empty_ctx("do something"));
         assert!(without_override.options.is_none());
     }
 }

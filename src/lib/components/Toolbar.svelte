@@ -3,6 +3,7 @@
 	import { listen } from '@tauri-apps/api/event';
 	import { documentState } from '$lib/stores/document.svelte';
 	import { sessionState } from '$lib/stores/session.svelte';
+	import { conversationState } from '$lib/stores/conversation.svelte';
 	import { projectState } from '$lib/stores/project.svelte';
 	import { uiState } from '$lib/stores/ui.svelte';
 	import { openDocument, openFolder, saveDocument, saveDocumentAs } from '$lib/actions/fileActions';
@@ -31,9 +32,17 @@
 		if (openMenuOpen && event.key === 'Escape') openMenuOpen = false;
 	}
 
+	function refreshOllamaWhenIdle() {
+		if (conversationState.isGenerating) return;
+		void sessionState.refresh();
+	}
+
 	onMount(() => {
-		sessionState.loadPreferences().then(() => sessionState.refresh());
-		pollHandle = setInterval(() => sessionState.refresh(), OLLAMA_POLL_INTERVAL_MS);
+		sessionState.loadPreferences().then(() => {
+			void sessionState.refresh();
+			void sessionState.refreshApiKeyStatus();
+		});
+		pollHandle = setInterval(refreshOllamaWhenIdle, OLLAMA_POLL_INTERVAL_MS);
 
 		Promise.all([
 			listen('menu:open', () => openDocument()),

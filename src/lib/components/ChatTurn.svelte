@@ -4,11 +4,20 @@
 	import { toDataUrl } from '$lib/images';
 	import { renderMarkdown } from '$lib/markdown';
 
+	const LIVE_THINKING_PREVIEW_CHARS = 6000;
+
 	let { turn }: { turn: ConversationTurn } = $props();
 
 	let thinkingExpanded = $state(true);
 
 	const modelLabel = $derived(sessionState.getModelNote(turn.model).alias.trim() || turn.model);
+	const answerLengthLabel = $derived(formatLiveCharCount(turn.answerLength));
+
+	function formatLiveCharCount(count: number) {
+		if (count < 1000) return `~${Math.max(50, Math.round(count / 50) * 50)} chars`;
+		if (count < 10_000) return `~${(count / 1000).toFixed(1)}K chars`;
+		return `~${Math.round(count / 1000)}K chars`;
+	}
 
 	// 'generating' covers three visually different moments — distinguish them so an idle
 	// "Thinking…" label (with thinking disabled) never gets confused with actual reasoning, and
@@ -42,6 +51,13 @@
 						? 'bg-red-500'
 						: 'bg-neutral-300 dark:bg-neutral-600'
 	);
+
+	const visibleThinkingText = $derived.by(() => {
+		if (turn.status === 'generating' && turn.thinkingText.length > LIVE_THINKING_PREVIEW_CHARS) {
+			return `...\n${turn.thinkingText.slice(-LIVE_THINKING_PREVIEW_CHARS)}`;
+		}
+		return turn.thinkingText;
+	});
 </script>
 
 {#if turn.images.length > 0}
@@ -67,8 +83,10 @@
 		<span class={`size-1.5 shrink-0 rounded-full ${statusDotClass}`}></span>
 		<span class="shrink-0 whitespace-nowrap">{statusLabel}</span>
 		{#if turn.status === 'generating' && turn.answerLength > 0}
-			<span class="shrink-0 whitespace-nowrap text-neutral-300 dark:text-neutral-600"
-				>· {turn.answerLength} chars</span
+			<span
+				title="Streamed assistant output characters, not context tokens"
+				class="shrink-0 whitespace-nowrap text-neutral-300 dark:text-neutral-600"
+				>· {answerLengthLabel}</span
 			>
 		{/if}
 	</div>
@@ -96,7 +114,7 @@
 				<p
 					class="mt-1 rounded-2xl bg-[var(--surface-inset)] px-3 py-2 text-sm whitespace-pre-wrap text-[var(--text-secondary)] italic"
 				>
-					{turn.thinkingText}
+					{visibleThinkingText}
 				</p>
 			{/if}
 		</div>

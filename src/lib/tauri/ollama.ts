@@ -53,6 +53,32 @@ interface PromptEvalEventPayload {
 	count: number;
 }
 
+const STREAM_BATCH_MS = 75;
+
+function createTextBatcher(onFlush: (text: string) => void) {
+	let buffer = '';
+	let flushHandle: ReturnType<typeof setTimeout> | undefined;
+
+	function flush() {
+		if (flushHandle) {
+			clearTimeout(flushHandle);
+			flushHandle = undefined;
+		}
+		if (!buffer) return;
+		const text = buffer;
+		buffer = '';
+		onFlush(text);
+	}
+
+	return {
+		push(chunk: string) {
+			buffer += chunk;
+			if (!flushHandle) flushHandle = setTimeout(flush, STREAM_BATCH_MS);
+		},
+		flush
+	};
+}
+
 /** One message in `history` — already compacted by the caller (`conversation.svelte.ts`); this
  *  layer just relays it through unchanged. */
 export interface ChatMessageInput {
@@ -113,11 +139,14 @@ export async function generateChatTurn(params: GenerateChatTurnParams): Promise<
 		onPromptEvalCount
 	} = params;
 
+	const answerBatcher = createTextBatcher(onChunk);
+	const thinkingBatcher = createTextBatcher(onThinking);
+
 	const unlistenChunk = await listen<GenerationEventPayload>('generation:chunk', (event) => {
-		if (event.payload.id === generationId) onChunk(event.payload.chunk);
+		if (event.payload.id === generationId) answerBatcher.push(event.payload.chunk);
 	});
 	const unlistenThinking = await listen<GenerationEventPayload>('generation:thinking', (event) => {
-		if (event.payload.id === generationId) onThinking(event.payload.chunk);
+		if (event.payload.id === generationId) thinkingBatcher.push(event.payload.chunk);
 	});
 	const unlistenPromptEval = await listen<PromptEvalEventPayload>(
 		'generation:promptEvalCount',
@@ -144,6 +173,8 @@ export async function generateChatTurn(params: GenerateChatTurnParams): Promise<
 			}
 		});
 	} finally {
+		answerBatcher.flush();
+		thinkingBatcher.flush();
 		unlistenChunk();
 		unlistenThinking();
 		unlistenPromptEval();

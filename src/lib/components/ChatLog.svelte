@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { documentState } from '$lib/stores/document.svelte';
 	import { sessionState } from '$lib/stores/session.svelte';
 	import { conversationState, type AttachedFile } from '$lib/stores/conversation.svelte';
@@ -7,6 +8,11 @@
 	import { pickImages, readImageBase64, readDocument } from '$lib/tauri/fs';
 	import { getModelInfo } from '$lib/tauri/ollama';
 	import { mimeTypeForPath, toDataUrl, type ImageAttachment } from '$lib/images';
+	import {
+		attachedFilesBlock,
+		filesToSendForNewTurn,
+		filesToSendPerTurn
+	} from '$lib/stores/attachedFiles';
 	import ChatTurn from './ChatTurn.svelte';
 	import FileListPicker from './FileListPicker.svelte';
 
@@ -28,6 +34,7 @@
 	let singleFileWriteMode = $state(true);
 	let textareaEl: HTMLTextAreaElement;
 	let scrollEl: HTMLDivElement;
+	let autoScrollPinned = $state(true);
 
 	let chatMenuOpen = $state(false);
 	let chatMenuRootEl: HTMLDivElement | undefined = $state(undefined);
@@ -62,22 +69,14 @@
 	);
 	const writeModeActive = $derived(Boolean(effectiveWriteTarget));
 
-	// Rough chars-per-token≈4 heuristic — there's no tokenizer available client-side. Covers prior
-	// turns' text, the active document (always in scope) and any extra attached files' content,
-	// and the draft being typed. Slightly over-counts in the common case where the active document
-	// hasn't changed since it was last actually sent (see conversation.svelte.ts's de-dup), but
-	// that's the safe direction for an estimate to be wrong in.
+	// Rough chars-per-token≈4 heuristic — there's no tokenizer available client-side. The char
+	// estimate intentionally mirrors `conversation.svelte.ts`/`prompt.rs`: compacted history,
+	// de-duped attached files, and the full target document when write mode is active.
 	const CHARS_PER_TOKEN = 4;
 	const SYSTEM_PROMPT_TOKEN_ESTIMATE = 80;
+	const AUTO_SCROLL_BOTTOM_TOLERANCE_PX = 48;
 	const estimatedTokens = $derived.by(() => {
-		let chars = 0;
-		for (const turn of conversationState.turns) {
-			chars += turn.instruction.length;
-			chars += turn.responseText?.length ?? 0;
-		}
-		chars += instruction.length;
-		if (documentState.path && !effectiveWriteTarget) chars += documentState.content.length;
-		for (const file of attachedFiles) chars += file.content.length;
+		const chars = estimateHistoryChars() + estimateCurrentTurnChars();
 		return SYSTEM_PROMPT_TOKEN_ESTIMATE + Math.ceil(chars / CHARS_PER_TOKEN);
 	});
 	const contextWindow = $derived(
@@ -107,7 +106,73 @@
 	function resizeTextarea() {
 		if (!textareaEl) return;
 		textareaEl.style.height = 'auto';
-		textareaEl.style.height = `${Math.min(textareaEl.scrollHeight, 160)}px`;
+		textareaEl.style.height = `${Math.min(textareaEl.scrollHeight, 112)}px`;
+	}
+
+	function estimateHistoryChars() {
+		let chars = 0;
+		const sendPlan = filesToSendPerTurn(conversationState.turns);
+
+		for (const turn of conversationState.turns) {
+			if (turn.status === 'error' || turn.status === 'cancelled') continue;
+
+			const changedFiles = sendPlan.get(turn.id) ?? [];
+			const unchangedFiles = turn.attachedFiles.filter((file) => !changedFiles.includes(file));
+			chars += attachedFilesBlock(changedFiles).length;
+			chars += turn.instruction.length;
+			if (unchangedFiles.length > 0) {
+				chars +=
+					`\n[${unchangedFiles.map((file) => file.path).join(', ')} — unchanged, already shown above]`
+						.length;
+			}
+
+			if (turn.mode === 'chat' && turn.responseText) {
+				chars += turn.responseText.length;
+			} else if (turn.mode === 'write' && turn.status === 'applied') {
+				chars += `[Wrote changes to ${turn.targetFile}]`.length;
+			} else if (turn.mode === 'write' && turn.status === 'discarded') {
+				chars += `[Proposed changes to ${turn.targetFile} — discarded]`.length;
+			}
+		}
+
+		return chars;
+	}
+
+	function estimateCurrentTurnChars() {
+		const target = effectiveWriteTarget;
+		const files = filesToSendForNewTurn(
+			conversationState.turns,
+			gatherCandidateFiles(target?.path ?? null)
+		);
+		const behaviorInstruction = sessionState.selectedInstructionPreset?.text.trim() ?? '';
+
+		let chars = behaviorInstruction.length;
+		if (target) {
+			chars += `Document:\n\n${documentState.content}\n\n`.length;
+			chars += attachedFilesBlock(files).length;
+			chars += `Instruction: ${instruction.trim()}`.length;
+		} else {
+			chars += attachedFilesBlock(files).length;
+			chars += instruction.length;
+		}
+		return chars;
+	}
+
+	function resetTextareaHeight() {
+		if (!textareaEl) return;
+		textareaEl.style.height = 'auto';
+	}
+
+	function isScrolledNearBottom(element: HTMLDivElement) {
+		return (
+			element.scrollHeight - element.scrollTop - element.clientHeight <=
+			AUTO_SCROLL_BOTTOM_TOLERANCE_PX
+		);
+	}
+
+	function handleChatScroll() {
+		if (!scrollEl) return;
+		autoScrollPinned = isScrolledNearBottom(scrollEl);
 	}
 
 	/** The active document is always in scope for a chat turn — no need to attach it manually —
@@ -144,7 +209,9 @@
 		attachedImages = [];
 		attachedFiles = [];
 		if (projectState.isOpen) projectWriteMode = false;
-		resizeTextarea();
+		autoScrollPinned = true;
+		await tick();
+		resetTextareaHeight();
 
 		if (target) {
 			await conversationState.runWrite(
@@ -180,6 +247,7 @@
 	function handleNewChat() {
 		chatsState.newChat();
 		chatMenuOpen = false;
+		autoScrollPinned = true;
 		textareaEl?.focus();
 	}
 
@@ -258,7 +326,8 @@
 
 	$effect(() => {
 		// Reading these properties is what makes this effect re-fire as the conversation grows
-		// (a new turn, or thinking text streaming in) — it's how the log auto-scrolls live.
+		// (a new turn, or thinking text streaming in). We only auto-scroll while the user is already
+		// near the bottom; once they scroll up, live updates must not fight them.
 		const turns = conversationState.turns;
 		void turns.length;
 		for (const turn of turns) {
@@ -266,7 +335,7 @@
 			void turn.answerLength;
 			void turn.status;
 		}
-		if (scrollEl) {
+		if (scrollEl && autoScrollPinned) {
 			requestAnimationFrame(() => {
 				scrollEl.scrollTop = scrollEl.scrollHeight;
 			});
@@ -423,7 +492,7 @@
 		<div class="app-panel-header px-3.5 py-2.5 text-xs font-medium">Chat</div>
 	{/if}
 
-	<div bind:this={scrollEl} class="flex-1 overflow-y-auto px-3.5 py-3">
+	<div bind:this={scrollEl} onscroll={handleChatScroll} class="flex-1 overflow-y-auto px-3.5 py-3">
 		{#if conversationState.turns.length === 0}
 			<p class="text-sm text-[var(--text-muted)]">
 				{nothingOpen
@@ -627,7 +696,7 @@
 			placeholder={effectiveWriteTarget
 				? `What should change in ${effectiveWriteTarget.name}?`
 				: 'Message…'}
-			class="max-h-40 flex-1 resize-none overflow-hidden rounded-xl bg-[var(--surface-bg)] px-2.5 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
+			class="max-h-28 flex-1 resize-none overflow-y-auto rounded-xl bg-[var(--surface-bg)] px-2.5 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
 		></textarea>
 		<button
 			title={conversationState.isGenerating ? 'Stop' : '⏎'}

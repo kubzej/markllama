@@ -1,10 +1,4 @@
-import {
-	detectOllama,
-	listOllamaModels,
-	supportsThinking,
-	supportsVision,
-	type OllamaModel
-} from '$lib/tauri/ollama';
+import { getModelInfo, listOllamaModels, type OllamaModel } from '$lib/tauri/ollama';
 import {
 	getSettings,
 	setSettings,
@@ -32,6 +26,8 @@ function createSessionState() {
 	let selectedInstructionId = $state<string | null>(null);
 	let instructionPresets = $state<InstructionPreset[]>([]);
 	let preferencesLoaded = $state(false);
+	const modelCapabilityCache: Record<string, { thinking: boolean; vision: boolean }> = {};
+	let capabilityRequestId = 0;
 
 	async function refreshApiKeyStatus() {
 		try {
@@ -176,46 +172,59 @@ function createSessionState() {
 		if (hasOrphanNote || hasOrphanOverride) persistPreferencesInBackground();
 	}
 
-	async function refreshThinkingSupport() {
-		if (!selectedModel) {
-			modelSupportsThinking = false;
-			thinkingEnabled = false;
-			return;
-		}
-		try {
-			modelSupportsThinking = await supportsThinking(selectedModel);
-		} catch {
-			modelSupportsThinking = false;
-		}
+	function applyModelCapabilities(
+		model: string,
+		capabilities: { thinking: boolean; vision: boolean }
+	) {
+		if (selectedModel !== model) return;
+		modelSupportsThinking = capabilities.thinking;
+		modelSupportsVision = capabilities.vision;
 		if (!modelSupportsThinking) thinkingEnabled = false;
 	}
 
-	async function refreshVisionSupport() {
+	async function refreshModelCapabilities() {
 		if (!selectedModel) {
+			modelSupportsThinking = false;
 			modelSupportsVision = false;
+			thinkingEnabled = false;
 			return;
 		}
+
+		const model = selectedModel;
+		const cached = modelCapabilityCache[model];
+		if (cached) {
+			applyModelCapabilities(model, cached);
+			return;
+		}
+
+		const requestId = ++capabilityRequestId;
 		try {
-			modelSupportsVision = await supportsVision(selectedModel);
+			const info = await getModelInfo(model);
+			const capabilities = {
+				thinking: info.capabilities.includes('thinking'),
+				vision: info.capabilities.includes('vision')
+			};
+			modelCapabilityCache[model] = capabilities;
+			if (requestId === capabilityRequestId) applyModelCapabilities(model, capabilities);
 		} catch {
-			modelSupportsVision = false;
+			if (requestId === capabilityRequestId) {
+				applyModelCapabilities(model, { thinking: false, vision: false });
+			}
 		}
 	}
 
 	async function refresh() {
-		const connected = await detectOllama();
-		status = connected ? 'connected' : 'disconnected';
-
-		if (!connected) {
-			models = [];
-			return;
-		}
-
 		try {
 			models = await listOllamaModels();
+			status = 'connected';
 			pruneOrphanedNotes(models);
 		} catch {
+			status = 'disconnected';
 			models = [];
+			modelSupportsThinking = false;
+			modelSupportsVision = false;
+			thinkingEnabled = false;
+			return;
 		}
 
 		if (!selectedModel || !models.some((model) => model.name === selectedModel)) {
@@ -223,9 +232,7 @@ function createSessionState() {
 			persistPreferencesInBackground();
 		}
 
-		await refreshThinkingSupport();
-		await refreshVisionSupport();
-		await refreshApiKeyStatus();
+		await refreshModelCapabilities();
 	}
 
 	return {
@@ -240,8 +247,7 @@ function createSessionState() {
 		},
 		set selectedModel(name: string | null) {
 			selectedModel = name;
-			void refreshThinkingSupport();
-			void refreshVisionSupport();
+			void refreshModelCapabilities();
 			persistPreferencesInBackground();
 		},
 		get modelSupportsThinking() {

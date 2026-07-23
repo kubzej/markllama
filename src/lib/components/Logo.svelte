@@ -1,0 +1,13 @@
+<script lang="ts">
+	let { class: className = 'size-5' }: { class?: string } = $props();
+</script>
+
+<svg viewBox="0 0 1024 1024" class={className} aria-hidden="true">
+	<rect width="1024" height="1024" rx="220" ry="220" fill="#CC5F40" />
+	<g stroke="#F8EFE3" stroke-width="66" stroke-linecap="round">
+		<line x1="420" y1="362" x2="420" y2="662" />
+		<line x1="604" y1="362" x2="604" y2="662" />
+		<line x1="362" y1="420" x2="662" y2="420" />
+		<line x1="362" y1="604" x2="662" y2="604" />
+	</g>
+</svg>

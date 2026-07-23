@@ -1,0 +1,39 @@
+@import 'tailwindcss';
+
+/*
+ * One font system, used deliberately per context:
+ *  - --font-sans:     app UI chrome (toolbar, buttons, labels, settings, instruction input,
+ *                      thinking trace, streamed answer preview) — native system font, matches
+ *                      Bear/Linear/Raycast.
+ *  - --font-mono:     Markdown itself (the editor, and diff lines that mirror it) — monospace so
+ *                      headings/lists/code blocks stay visually aligned the same way in the diff
+ *                      as they do in the editor.
+ */
+@theme {
+	--font-sans:
+		-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+	--font-mono:
+		ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+
+	/* Brand accent — same terracotta as the app icon. Used sparingly: primary actions
+	   (Generate, Apply), the active-toggle state, the unsaved-changes dot, and focus. */
+	--color-accent: #cc5f40;
+	--color-accent-dark: #b04f34;
+}
+
+body {
+	font-family: var(--font-sans);
+}
+
+:root {
+	--editor-fg: #171717;
+	--editor-selection: rgba(0, 0, 0, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--editor-fg: #f5f5f5;
+		--editor-selection: rgba(255, 255, 255, 0.14);
+	}
+}
+

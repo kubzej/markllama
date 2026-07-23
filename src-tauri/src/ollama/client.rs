@@ -2,7 +2,7 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 use super::prompt::{ChatContext, ChatMessage, build_chat_request, build_write_request};
@@ -15,11 +15,13 @@ const OLLAMA_BASE_URL: &str = "http://localhost:11434";
 /// legitimately take well over a minute, and a client-wide timeout would abort the connection
 /// mid-stream (this happened — it surfaced as a confusing "error decoding response body").
 const QUICK_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
-/// Safety net for generation only, so a truly stalled connection doesn't hang forever.
-const GENERATION_TIMEOUT: Duration = Duration::from_secs(600);
+/// Safety net for generation only. This is deliberately an *idle* timeout, not a total request
+/// timeout: thinking models can legitimately run for a long time, but a connection that sends
+/// nothing at all for this long is probably wedged.
+const GENERATION_IDLE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 /// How often the streaming loop wakes up to recheck the cancel flag even when no new bytes have
 /// arrived — without this, a stalled/idle connection would only ever notice Cancel between
-/// chunks, i.e. never, until `GENERATION_TIMEOUT`.
+/// chunks, i.e. never, until the idle timeout.
 const STREAM_POLL_INTERVAL: Duration = Duration::from_millis(500);
 const GENERATION_CHUNK_EVENT: &str = "generation:chunk";
 const GENERATION_THINKING_EVENT: &str = "generation:thinking";
@@ -415,7 +417,6 @@ impl OllamaClient {
             .http
             .post(format!("{OLLAMA_BASE_URL}/api/chat"))
             .json(&chat_request)
-            .timeout(GENERATION_TIMEOUT)
             .send()
             .await
             .map_err(|err| format!("Could not reach Ollama: {err}"))?;
@@ -427,12 +428,13 @@ impl OllamaClient {
         let mut byte_stream = response.bytes_stream();
         let mut buffer = String::new();
         let mut full_text = String::new();
+        let mut last_stream_activity = Instant::now();
 
         loop {
             // Checked every poll tick, not just when a chunk actually arrives — a stalled
             // connection (model hung, Ollama process wedged) would otherwise block on
             // `byte_stream.next()` forever and never notice a Cancel click until
-            // `GENERATION_TIMEOUT` eventually fires.
+            // the idle watchdog fires.
             if cancel.load(Ordering::Relaxed) {
                 // Dropping `byte_stream`/`response` here (function return) closes the
                 // connection; Ollama notices and stops generating on its end too.
@@ -441,7 +443,15 @@ impl OllamaClient {
 
             let next = match tokio::time::timeout(STREAM_POLL_INTERVAL, byte_stream.next()).await {
                 Ok(next) => next,
-                Err(_) => continue, // no data within this tick — loop back and recheck cancel
+                Err(_) => {
+                    if last_stream_activity.elapsed() > GENERATION_IDLE_TIMEOUT {
+                        return Err(format!(
+                            "Ollama stopped sending data for {} minutes; generation may be stuck",
+                            GENERATION_IDLE_TIMEOUT.as_secs() / 60
+                        ));
+                    }
+                    continue; // no data within this tick — loop back and recheck cancel
+                }
             };
 
             let Some(chunk) = next else {
@@ -449,6 +459,7 @@ impl OllamaClient {
             };
 
             let chunk = chunk.map_err(|err| format!("Stream error: {err}"))?;
+            last_stream_activity = Instant::now();
             buffer.push_str(&String::from_utf8_lossy(&chunk));
 
             for parsed in drain_complete_lines(&mut buffer)? {

@@ -33,12 +33,19 @@ pub struct ChatMessage {
     pub images: Vec<String>,
 }
 
+#[derive(Serialize, Debug, PartialEq)]
+pub struct ChatOptions {
+    pub num_ctx: u32,
+}
+
 #[derive(Serialize)]
 pub struct ChatRequest {
     pub model: String,
     pub messages: Vec<ChatMessage>,
     pub stream: bool,
     pub think: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub options: Option<ChatOptions>,
 }
 
 /// Builds a single-turn request: system prompt + current markdown + current instruction, and
@@ -48,6 +55,7 @@ pub fn build_edit_request(
     markdown: &str,
     instruction: &str,
     images: Vec<String>,
+    num_ctx: Option<u32>,
     thinking: bool,
     web_context: Option<&str>,
 ) -> ChatRequest {
@@ -74,6 +82,7 @@ pub fn build_edit_request(
         ],
         stream: true,
         think: thinking,
+        options: num_ctx.map(|n| ChatOptions { num_ctx: n }),
     }
 }
 
@@ -92,6 +101,7 @@ mod tests {
             "# Doc",
             "do something",
             Vec::new(),
+            None,
             false,
             None,
         );
@@ -115,6 +125,7 @@ mod tests {
             "# First document",
             "first instruction",
             Vec::new(),
+            None,
             false,
             None,
         );
@@ -123,6 +134,7 @@ mod tests {
             "# Second document",
             "second instruction",
             Vec::new(),
+            None,
             false,
             None,
         );
@@ -147,11 +159,39 @@ mod tests {
             "# Doc",
             "describe this image",
             vec!["base64data".to_string()],
+            None,
             false,
             None,
         );
 
         assert!(request.messages[0].images.is_empty());
         assert_eq!(request.messages[1].images, vec!["base64data".to_string()]);
+    }
+
+    /// An explicit `num_ctx` override becomes the request's `options`; leaving it unset omits
+    /// `options` entirely rather than sending an explicit "use the default" value.
+    #[test]
+    fn num_ctx_override_becomes_request_options() {
+        let with_override = build_edit_request(
+            "qwen3.5:9b".to_string(),
+            "# Doc",
+            "do something",
+            Vec::new(),
+            Some(8192),
+            false,
+            None,
+        );
+        assert_eq!(with_override.options, Some(ChatOptions { num_ctx: 8192 }));
+
+        let without_override = build_edit_request(
+            "qwen3.5:9b".to_string(),
+            "# Doc",
+            "do something",
+            Vec::new(),
+            None,
+            false,
+            None,
+        );
+        assert!(without_override.options.is_none());
     }
 }

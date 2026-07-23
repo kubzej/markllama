@@ -65,6 +65,7 @@ function createConversationState() {
 		markdown: string,
 		instruction: string,
 		images: ImageAttachment[],
+		numCtx: number | null,
 		thinking: boolean,
 		webSearch: boolean
 	): Promise<void> {
@@ -92,6 +93,7 @@ function createConversationState() {
 				markdown,
 				instruction,
 				images.map((image) => image.base64),
+				numCtx,
 				thinking,
 				webSearch,
 				(chunk) => {

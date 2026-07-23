@@ -4,6 +4,7 @@ function createUiState() {
 	let settingsOpen = $state(false);
 	let sidebarOpen = $state(true);
 	let resolvePending = $state<((choice: FileSwitchChoice) => void) | null>(null);
+	let modelInfoTarget = $state<string | null>(null);
 
 	function requestFileSwitchConfirm(): Promise<FileSwitchChoice> {
 		return new Promise((resolve) => {
@@ -35,7 +36,16 @@ function createUiState() {
 			return resolvePending !== null;
 		},
 		requestFileSwitchConfirm,
-		resolveFileSwitchConfirm
+		resolveFileSwitchConfirm,
+		get modelInfoTarget() {
+			return modelInfoTarget;
+		},
+		openModelInfo(modelName: string) {
+			modelInfoTarget = modelName;
+		},
+		closeModelInfo() {
+			modelInfoTarget = null;
+		}
 	};
 }
 

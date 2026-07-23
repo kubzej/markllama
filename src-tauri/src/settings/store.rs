@@ -22,6 +22,9 @@ pub struct Settings {
     pub thinking_default: bool,
     pub web_search_default: bool,
     pub model_notes: HashMap<String, ModelNote>,
+    /// Per-model `num_ctx` override, keyed by exact Ollama model name. Absent entry means "use
+    /// Ollama's own default" — never sent to `/api/chat` as an explicit value in that case.
+    pub num_ctx_overrides: HashMap<String, u32>,
 }
 
 impl Default for Settings {
@@ -31,6 +34,7 @@ impl Default for Settings {
             thinking_default: false,
             web_search_default: false,
             model_notes: HashMap::new(),
+            num_ctx_overrides: HashMap::new(),
         }
     }
 }
@@ -94,5 +98,26 @@ mod tests {
         let note = parsed.model_notes.get("qwen3.5:9b").expect("note present");
         assert_eq!(note.alias, "Reasoner");
         assert_eq!(note.description, "Good at multi-step edits");
+    }
+
+    /// A settings.json written before `num_ctx_overrides` existed must still load —
+    /// `#[serde(default)]` should backfill an empty map rather than failing to parse.
+    #[test]
+    fn old_settings_without_num_ctx_overrides_still_parse() {
+        let old = r#"{"lastModel":"qwen3.5:9b","thinkingDefault":true,"webSearchDefault":false}"#;
+        let parsed: Settings = serde_json::from_str(old).expect("should parse");
+        assert!(parsed.num_ctx_overrides.is_empty());
+    }
+
+    #[test]
+    fn num_ctx_overrides_round_trip_through_json() {
+        let mut settings = Settings::default();
+        settings
+            .num_ctx_overrides
+            .insert("qwen3.5:9b".to_string(), 8192);
+
+        let json = serde_json::to_string(&settings).expect("should serialize");
+        let parsed: Settings = serde_json::from_str(&json).expect("should parse");
+        assert_eq!(parsed.num_ctx_overrides.get("qwen3.5:9b"), Some(&8192));
     }
 }

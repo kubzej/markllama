@@ -11,6 +11,8 @@ export interface Settings {
 	webSearchDefault: boolean;
 	/** Keyed by exact Ollama model name — purely local organization, see `ModelNote`. */
 	modelNotes: Record<string, ModelNote>;
+	/** Keyed by exact Ollama model name — absent entry means "use Ollama's own default". */
+	numCtxOverrides: Record<string, number>;
 }
 
 /**

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { sessionState } from '$lib/stores/session.svelte';
+	import { uiState } from '$lib/stores/ui.svelte';
 	import type { OllamaModel } from '$lib/tauri/ollama';
 
 	let open = $state(false);
@@ -44,44 +45,66 @@
 {#snippet modelRow(model: OllamaModel)}
 	{@const note = sessionState.getModelNote(model.name)}
 	{@const selected = model.name === sessionState.selectedModel}
-	<button
-		type="button"
-		onclick={() => selectModel(model.name)}
-		class="flex w-full items-start gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors duration-150 hover:bg-neutral-100 dark:hover:bg-white/[0.08] {selected
+	<div
+		class="flex w-full items-start gap-1 rounded-lg {selected
 			? 'bg-accent/10 dark:bg-accent/15'
 			: ''}"
 	>
-		<span class="block min-w-0 flex-1">
-			<span class="flex items-baseline gap-1.5">
-				<span class="truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">
-					{note.alias.trim() || model.name}
+		<button
+			type="button"
+			onclick={() => selectModel(model.name)}
+			class="flex min-w-0 flex-1 items-start gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors duration-150 hover:bg-neutral-100 dark:hover:bg-white/[0.08]"
+		>
+			<span class="block min-w-0 flex-1">
+				<span class="flex items-baseline gap-1.5">
+					<span class="truncate text-sm font-medium text-neutral-800 dark:text-neutral-100">
+						{note.alias.trim() || model.name}
+					</span>
+					{#if note.alias.trim()}
+						<span class="truncate font-mono text-[11px] text-neutral-400 dark:text-neutral-500"
+							>{model.name}</span
+						>
+					{/if}
 				</span>
-				{#if note.alias.trim()}
-					<span class="truncate font-mono text-[11px] text-neutral-400 dark:text-neutral-500"
-						>{model.name}</span
+				{#if note.description.trim()}
+					<span class="line-clamp-2 mt-0.5 block whitespace-normal text-xs text-neutral-500 dark:text-neutral-400"
+						>{note.description}</span
 					>
 				{/if}
 			</span>
-			{#if note.description.trim()}
-				<span class="line-clamp-2 mt-0.5 block whitespace-normal text-xs text-neutral-500 dark:text-neutral-400"
-					>{note.description}</span
+			{#if selected}
+				<svg
+					viewBox="0 0 24 24"
+					class="mt-0.5 size-3.5 shrink-0 text-accent"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2.5"
+					stroke-linecap="round"
+					stroke-linejoin="round"
 				>
+					<path d="M20 6 9 17l-5-5" />
+				</svg>
 			{/if}
-		</span>
-		{#if selected}
+		</button>
+		<button
+			type="button"
+			title="Model info"
+			onclick={() => uiState.openModelInfo(model.name)}
+			class="mt-1 shrink-0 rounded-md p-1 text-neutral-400 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
+		>
 			<svg
 				viewBox="0 0 24 24"
-				class="mt-0.5 size-3.5 shrink-0 text-accent"
+				class="size-3.5"
 				fill="none"
 				stroke="currentColor"
-				stroke-width="2.5"
-				stroke-linecap="round"
-				stroke-linejoin="round"
+				stroke-width="1.8"
 			>
-				<path d="M20 6 9 17l-5-5" />
+				<circle cx="12" cy="12" r="9" />
+				<path d="M12 11v5" stroke-linecap="round" />
+				<circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none" />
 			</svg>
-		{/if}
-	</button>
+		</button>
+	</div>
 {/snippet}
 
 <svelte:window onclick={handleWindowClick} onkeydown={handleWindowKeydown} />

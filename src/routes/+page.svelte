@@ -6,6 +6,7 @@
 	import ChatLog from '$lib/components/ChatLog.svelte';
 	import ChangesPanel from '$lib/components/ChangesPanel.svelte';
 	import FileSwitchConfirmDialog from '$lib/components/FileSwitchConfirmDialog.svelte';
+	import ModelInfoDialog from '$lib/components/ModelInfoDialog.svelte';
 	import { documentState } from '$lib/stores/document.svelte';
 	import { sessionState } from '$lib/stores/session.svelte';
 	import { projectState } from '$lib/stores/project.svelte';
@@ -42,3 +43,4 @@
 </div>
 
 <FileSwitchConfirmDialog />
+<ModelInfoDialog />

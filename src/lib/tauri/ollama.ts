@@ -21,6 +21,24 @@ export async function supportsVision(model: string): Promise<boolean> {
 	return invoke<boolean>('ollama_supports_vision', { model });
 }
 
+export interface ModelParameter {
+	key: string;
+	value: string;
+}
+
+export interface ModelInfo {
+	architecture: string;
+	parameterSize: string;
+	quantization: string;
+	contextLength: number | null;
+	capabilities: string[];
+	parameters: ModelParameter[];
+}
+
+export async function getModelInfo(model: string): Promise<ModelInfo> {
+	return invoke<ModelInfo>('ollama_get_model_info', { model });
+}
+
 export async function cancelGeneration(): Promise<void> {
 	await invoke('cancel_generation');
 }
@@ -30,6 +48,7 @@ export async function generateEdit(
 	markdown: string,
 	instruction: string,
 	images: string[],
+	numCtx: number | null,
 	thinking: boolean,
 	webSearch: boolean,
 	onChunk: (chunk: string) => void,
@@ -47,6 +66,7 @@ export async function generateEdit(
 			markdown,
 			instruction,
 			images,
+			numCtx,
 			thinking,
 			webSearch
 		});

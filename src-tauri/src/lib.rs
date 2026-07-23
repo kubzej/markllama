@@ -21,6 +21,7 @@ pub fn run() {
       ollama::client::ollama_list_models,
       ollama::client::ollama_supports_thinking,
       ollama::client::ollama_supports_vision,
+      ollama::client::ollama_get_model_info,
       ollama::client::generate_edit,
       ollama::client::cancel_generation,
       diff::engine::diff_documents,

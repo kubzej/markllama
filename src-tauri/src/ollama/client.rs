@@ -35,10 +35,44 @@ struct TagsModel {
     name: String,
 }
 
+#[derive(Debug, Default, Deserialize)]
+struct ShowDetails {
+    #[serde(default)]
+    family: String,
+    #[serde(default)]
+    parameter_size: String,
+    #[serde(default)]
+    quantization_level: String,
+}
+
 #[derive(Debug, Deserialize)]
 struct ShowResponse {
     #[serde(default)]
     capabilities: Vec<String>,
+    #[serde(default)]
+    details: ShowDetails,
+    #[serde(default)]
+    model_info: std::collections::HashMap<String, serde_json::Value>,
+    #[serde(default)]
+    parameters: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelParameter {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelInfo {
+    pub architecture: String,
+    pub parameter_size: String,
+    pub quantization: String,
+    pub context_length: Option<u64>,
+    pub capabilities: Vec<String>,
+    pub parameters: Vec<ModelParameter>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,6 +108,34 @@ fn drain_complete_lines(buffer: &mut String) -> Result<Vec<ChatStreamLine>, Stri
     }
 
     Ok(lines)
+}
+
+/// `model_info` keys are architecture-prefixed (e.g. `"qwen3.context_length"`) — search by
+/// suffix rather than constructing the exact key, so this works regardless of model family.
+fn extract_context_length(model_info: &std::collections::HashMap<String, serde_json::Value>) -> Option<u64> {
+    model_info
+        .iter()
+        .find(|(key, _)| key.ends_with(".context_length"))
+        .and_then(|(_, value)| value.as_u64())
+}
+
+/// Ollama's `/api/show` returns default sampling parameters as a raw multi-line string (one
+/// `key value` pair per line, e.g. `"temperature 1\ntop_p 0.95"`) rather than structured JSON.
+fn parse_parameters(raw: &str) -> Vec<ModelParameter> {
+    raw.lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            let key = parts.next()?.to_string();
+            let value: Vec<&str> = parts.collect();
+            if value.is_empty() {
+                return None;
+            }
+            Some(ModelParameter {
+                key,
+                value: value.join(" "),
+            })
+        })
+        .collect()
 }
 
 pub struct OllamaClient {
@@ -176,6 +238,35 @@ impl OllamaClient {
         Ok(show.capabilities.iter().any(|cap| cap == "vision"))
     }
 
+    /// Fetches the richer model detail shown in the info dialog — architecture, parameter size,
+    /// quantization, context length, capabilities, and default sampling parameters. Separate from
+    /// `supports_thinking`/`supports_vision` (which only need `capabilities`) since this is only
+    /// fetched lazily when the user opens the info dialog, not on every model switch.
+    pub async fn get_model_info(&self, model: &str) -> Result<ModelInfo, String> {
+        let response = self
+            .http
+            .post(format!("{OLLAMA_BASE_URL}/api/show"))
+            .json(&serde_json::json!({ "model": model }))
+            .timeout(QUICK_REQUEST_TIMEOUT)
+            .send()
+            .await
+            .map_err(|err| format!("Could not reach Ollama: {err}"))?;
+
+        let show: ShowResponse = response
+            .json()
+            .await
+            .map_err(|err| format!("Unexpected response from Ollama: {err}"))?;
+
+        Ok(ModelInfo {
+            architecture: show.details.family,
+            parameter_size: show.details.parameter_size,
+            quantization: show.details.quantization_level,
+            context_length: extract_context_length(&show.model_info),
+            capabilities: show.capabilities,
+            parameters: parse_parameters(&show.parameters),
+        })
+    }
+
     /// Sends the single-turn `{ system, markdown, instruction, images }` request and streams the
     /// response as `generation:chunk` (and, when `thinking` is enabled, `generation:thinking`)
     /// events. Returns the full assembled answer text once Ollama reports `done` — the thinking
@@ -187,6 +278,7 @@ impl OllamaClient {
         markdown: &str,
         instruction: &str,
         images: Vec<String>,
+        num_ctx: Option<u32>,
         thinking: bool,
         web_search_enabled: bool,
     ) -> Result<String, String> {
@@ -200,6 +292,7 @@ impl OllamaClient {
                 markdown,
                 instruction,
                 images,
+                num_ctx,
                 thinking,
                 web_search_enabled,
                 &cancel,
@@ -219,6 +312,7 @@ impl OllamaClient {
         markdown: &str,
         instruction: &str,
         images: Vec<String>,
+        num_ctx: Option<u32>,
         thinking: bool,
         web_search_enabled: bool,
         cancel: &Arc<AtomicBool>,
@@ -239,6 +333,7 @@ impl OllamaClient {
             markdown,
             instruction,
             images,
+            num_ctx,
             thinking,
             web_context.as_deref(),
         );
@@ -326,6 +421,14 @@ pub async fn ollama_supports_vision(
 }
 
 #[tauri::command]
+pub async fn ollama_get_model_info(
+    client: tauri::State<'_, OllamaClient>,
+    model: String,
+) -> Result<ModelInfo, String> {
+    client.get_model_info(&model).await
+}
+
+#[tauri::command]
 pub fn cancel_generation(client: tauri::State<'_, OllamaClient>) {
     client.cancel_generation();
 }
@@ -338,6 +441,7 @@ pub async fn generate_edit(
     markdown: String,
     instruction: String,
     images: Vec<String>,
+    num_ctx: Option<u32>,
     thinking: bool,
     web_search: bool,
 ) -> Result<String, String> {
@@ -348,6 +452,7 @@ pub async fn generate_edit(
             &markdown,
             &instruction,
             images,
+            num_ctx,
             thinking,
             web_search,
         )
@@ -458,5 +563,52 @@ mod tests {
         let parsed: ShowResponse =
             serde_json::from_str(body_without_thinking).expect("should parse");
         assert!(!parsed.capabilities.iter().any(|cap| cap == "thinking"));
+    }
+
+    #[test]
+    fn parses_full_show_response_into_model_info_fields() {
+        let body = r#"{
+            "capabilities": ["completion", "vision", "thinking"],
+            "details": {
+                "family": "qwen3",
+                "parameter_size": "9.7B",
+                "quantization_level": "Q4_K_M"
+            },
+            "model_info": {
+                "general.architecture": "qwen3",
+                "qwen3.context_length": 262144,
+                "qwen3.embedding_length": 4096
+            },
+            "parameters": "temperature 1\ntop_p 0.95\ntop_k 20"
+        }"#;
+
+        let show: ShowResponse = serde_json::from_str(body).expect("should parse");
+        assert_eq!(show.details.family, "qwen3");
+        assert_eq!(show.details.parameter_size, "9.7B");
+        assert_eq!(show.details.quantization_level, "Q4_K_M");
+        assert_eq!(extract_context_length(&show.model_info), Some(262144));
+
+        let params = parse_parameters(&show.parameters);
+        assert_eq!(params.len(), 3);
+        assert_eq!(params[0].key, "temperature");
+        assert_eq!(params[0].value, "1");
+        assert_eq!(params[1].key, "top_p");
+        assert_eq!(params[1].value, "0.95");
+    }
+
+    #[test]
+    fn extract_context_length_returns_none_when_absent() {
+        let model_info = std::collections::HashMap::new();
+        assert_eq!(extract_context_length(&model_info), None);
+    }
+
+    #[test]
+    fn parse_parameters_ignores_blank_lines_and_joins_multi_word_values() {
+        let raw = "temperature 1\n\nstop \"<|eot_id|>\" extra\n";
+        let params = parse_parameters(raw);
+        assert_eq!(params.len(), 2);
+        assert_eq!(params[0].key, "temperature");
+        assert_eq!(params[1].key, "stop");
+        assert_eq!(params[1].value, "\"<|eot_id|>\" extra");
     }
 }

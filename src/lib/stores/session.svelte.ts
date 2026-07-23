@@ -21,6 +21,8 @@ function createSessionState() {
 	let webSearchEnabled = $state(false);
 	/** Keyed by exact Ollama model name — local-only alias/description, never sent to Ollama. */
 	let modelNotes = $state<Record<string, ModelNote>>({});
+	/** Keyed by exact Ollama model name — absent entry means "use Ollama's own default". */
+	let numCtxOverrides = $state<Record<string, number>>({});
 	let preferencesLoaded = $state(false);
 
 	async function refreshApiKeyStatus() {
@@ -38,7 +40,8 @@ function createSessionState() {
 			lastModel: selectedModel,
 			thinkingDefault: thinkingEnabled,
 			webSearchDefault: webSearchEnabled,
-			modelNotes
+			modelNotes,
+			numCtxOverrides
 		});
 	}
 
@@ -48,6 +51,7 @@ function createSessionState() {
 		thinkingEnabled = saved.thinkingDefault;
 		webSearchEnabled = saved.webSearchDefault;
 		modelNotes = saved.modelNotes ?? {};
+		numCtxOverrides = saved.numCtxOverrides ?? {};
 		preferencesLoaded = true;
 	}
 
@@ -66,23 +70,50 @@ function createSessionState() {
 		persistPreferences();
 	}
 
+	function getNumCtxOverride(name: string): number | null {
+		return numCtxOverrides[name] ?? null;
+	}
+
+	function setNumCtxOverride(name: string, value: number | null) {
+		if (value == null) {
+			const rest = { ...numCtxOverrides };
+			delete rest[name];
+			numCtxOverrides = rest;
+		} else {
+			numCtxOverrides = { ...numCtxOverrides, [name]: value };
+		}
+		persistPreferences();
+	}
+
 	/**
-	 * Drops notes for models that no longer exist in Ollama (e.g. `ollama rm`'d) so deleting a
-	 * model also cleans up its alias/description rather than leaving it orphaned in settings.json
-	 * forever. Only called with a freshly, successfully fetched model list — never on a failed
-	 * fetch or a disconnected Ollama, since that would otherwise wipe every note just because the
-	 * service was briefly unreachable.
+	 * Drops notes/overrides for models that no longer exist in Ollama (e.g. `ollama rm`'d) so
+	 * deleting a model also cleans up its alias/description/num_ctx rather than leaving them
+	 * orphaned in settings.json forever. Only called with a freshly, successfully fetched model
+	 * list — never on a failed fetch or a disconnected Ollama, since that would otherwise wipe
+	 * every note/override just because the service was briefly unreachable.
 	 */
 	function pruneOrphanedNotes(currentModels: OllamaModel[]) {
 		const validNames = new Set(currentModels.map((model) => model.name));
-		const hasOrphan = Object.keys(modelNotes).some((name) => !validNames.has(name));
-		if (!hasOrphan) return;
-		const pruned: Record<string, ModelNote> = {};
-		for (const [name, note] of Object.entries(modelNotes)) {
-			if (validNames.has(name)) pruned[name] = note;
+
+		const hasOrphanNote = Object.keys(modelNotes).some((name) => !validNames.has(name));
+		if (hasOrphanNote) {
+			const pruned: Record<string, ModelNote> = {};
+			for (const [name, note] of Object.entries(modelNotes)) {
+				if (validNames.has(name)) pruned[name] = note;
+			}
+			modelNotes = pruned;
 		}
-		modelNotes = pruned;
-		persistPreferences();
+
+		const hasOrphanOverride = Object.keys(numCtxOverrides).some((name) => !validNames.has(name));
+		if (hasOrphanOverride) {
+			const pruned: Record<string, number> = {};
+			for (const [name, value] of Object.entries(numCtxOverrides)) {
+				if (validNames.has(name)) pruned[name] = value;
+			}
+			numCtxOverrides = pruned;
+		}
+
+		if (hasOrphanNote || hasOrphanOverride) persistPreferences();
 	}
 
 	async function refreshThinkingSupport() {
@@ -181,6 +212,8 @@ function createSessionState() {
 		},
 		getModelNote,
 		setModelNote,
+		getNumCtxOverride,
+		setNumCtxOverride,
 		loadPreferences,
 		refresh,
 		refreshApiKeyStatus

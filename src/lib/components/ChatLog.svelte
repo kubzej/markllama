@@ -35,6 +35,7 @@
 		const text = instruction.trim();
 		if (!model || !text) return;
 		const images = attachedImages;
+		const numCtx = sessionState.getNumCtxOverride(model);
 		instruction = '';
 		attachedImages = [];
 		resizeTextarea();
@@ -43,6 +44,7 @@
 			documentState.content,
 			text,
 			images,
+			numCtx,
 			sessionState.thinkingEnabled,
 			sessionState.webSearchEnabled
 		);

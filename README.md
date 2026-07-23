@@ -36,9 +36,6 @@ has already been sent in this chat and has not changed, the next request can rel
 turn instead of sending the same text again. Past write turns are compacted to short markers like
 `[Wrote changes to notes.md]`, not replayed as full old documents.
 
-That is the point of the app: Markdown work with local models, without an always-on agent mode or
-thousands of hidden tokens. You can add context deliberately; the default stays plain.
-
 ## Requirements
 
 - macOS (Apple Silicon), macOS 13 (Ventura) or later.

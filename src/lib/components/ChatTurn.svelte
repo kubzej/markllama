@@ -14,9 +14,9 @@
 	const answerLengthLabel = $derived(formatLiveCharCount(turn.answerLength));
 
 	function formatLiveCharCount(count: number) {
-		if (count < 1000) return `~${Math.max(50, Math.round(count / 50) * 50)} chars`;
-		if (count < 10_000) return `~${(count / 1000).toFixed(1)}K chars`;
-		return `~${Math.round(count / 1000)}K chars`;
+		if (count < 1000) return `~${Math.max(50, Math.round(count / 50) * 50)} output`;
+		if (count < 10_000) return `~${(count / 1000).toFixed(1)}K output`;
+		return `~${Math.round(count / 1000)}K output`;
 	}
 
 	// 'generating' covers three visually different moments — distinguish them so an idle

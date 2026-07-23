@@ -414,7 +414,7 @@
 				{#if contextWindow}
 					<div
 						class="flex shrink-0 items-center gap-1.5"
-						title="~{estimatedTokens.toLocaleString()} / {contextWindow.toLocaleString()} tokens (estimate){conversationState.lastPromptTokenCount
+						title="Next request: ~{estimatedTokens.toLocaleString()} / {contextWindow.toLocaleString()} tokens (estimate). Markllama only keeps the minimal context it would send now, so this can go down after unchanged files or write turns are compacted.{conversationState.lastPromptTokenCount
 							? ` · last request used ${conversationState.lastPromptTokenCount.toLocaleString()}`
 							: ''}"
 					>
@@ -430,6 +430,7 @@
 							~{estimatedTokens >= 1000
 								? `${Math.round(estimatedTokens / 1000)}K`
 								: estimatedTokens}
+							ctx
 						</span>
 					</div>
 				{/if}

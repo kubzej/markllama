@@ -88,7 +88,7 @@
 	});
 	const contextWindow = $derived(
 		sessionState.selectedModel
-			? sessionState.getNumCtxOverride(sessionState.selectedModel) ?? modelMaxContext
+			? (sessionState.getNumCtxOverride(sessionState.selectedModel) ?? modelMaxContext)
 			: null
 	);
 	const contextUsageRatio = $derived(
@@ -185,6 +185,19 @@
 		void handleSendMessage();
 	}
 
+	function handleNewChat() {
+		chatsState.newChat();
+		chatMenuOpen = false;
+		textareaEl?.focus();
+	}
+
+	function handleDeleteActiveChat() {
+		const id = chatsState.activeChatId;
+		if (!id) return;
+		void chatsState.removeChat(id);
+		chatMenuOpen = false;
+	}
+
 	/** Picking a target only arms it — it switches to that document (same guarded flow as clicking
 	 *  it in the sidebar) so it's visible for review, but generation only happens once the user
 	 *  actually hits Send with their instruction; see `handleSendChat`. */
@@ -276,64 +289,105 @@
 
 <svelte:window onclick={handleWindowClick} />
 
-<div
-	class="flex min-h-0 flex-[3] flex-col rounded-2xl bg-white shadow-sm ring-1 ring-neutral-200/70 dark:bg-neutral-900 dark:ring-white/[0.06]"
->
-	{#if projectState.isOpen}
-		<div class="relative border-b border-neutral-200/70 dark:border-white/[0.06]" bind:this={chatMenuRootEl}>
+<div class="app-surface flex min-h-0 flex-[3] flex-col overflow-hidden rounded-2xl">
+	{#if !nothingOpen}
+		<div class="app-panel-header relative" bind:this={chatMenuRootEl}>
 			<div class="flex items-center gap-2 px-3.5 py-2">
 				<button
 					type="button"
+					title="Switch chat"
 					aria-haspopup="menu"
 					aria-expanded={chatMenuOpen}
 					onclick={() => (chatMenuOpen = !chatMenuOpen)}
-					class="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1 py-1 text-left text-xs font-medium text-neutral-500 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
+					class="flex min-w-0 flex-1 items-center gap-1 rounded-md px-1 py-1 text-left text-xs font-medium text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 				>
 					<span class="min-w-0 flex-1 truncate">{currentChatTitle}</span>
-					<svg viewBox="0 0 24 24" class="size-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<svg
+						viewBox="0 0 24 24"
+						class="size-3 shrink-0"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
 						<path d="M6 9l6 6 6-6" />
+					</svg>
+				</button>
+				<button
+					type="button"
+					title="New chat"
+					aria-label="New chat"
+					onclick={handleNewChat}
+					class="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-accent transition-colors duration-150 hover:bg-accent/10"
+				>
+					<svg
+						viewBox="0 0 24 24"
+						class="size-3.5 shrink-0"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+					>
+						<path d="M12 5v14M5 12h14" />
+					</svg>
+					New
+				</button>
+				<button
+					type="button"
+					title={chatsState.activeChatId ? 'Delete current chat' : 'Current chat is not saved yet'}
+					aria-label="Delete current chat"
+					disabled={!chatsState.activeChatId}
+					onclick={handleDeleteActiveChat}
+					class="flex size-6 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] transition-colors duration-150 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-35 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+				>
+					<svg
+						viewBox="0 0 24 24"
+						class="size-3.5"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<path
+							d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0-.6 12.2A2 2 0 0 1 14.4 21H9.6a2 2 0 0 1-2-1.8L7 7"
+						/>
 					</svg>
 				</button>
 				{#if contextWindow}
 					<div
 						class="flex shrink-0 items-center gap-1.5"
-						title="~{estimatedTokens.toLocaleString()} / {contextWindow.toLocaleString()} tokens (estimate){conversationState.lastPromptTokenCount ? ` · last request used ${conversationState.lastPromptTokenCount.toLocaleString()}` : ''}"
+						title="~{estimatedTokens.toLocaleString()} / {contextWindow.toLocaleString()} tokens (estimate){conversationState.lastPromptTokenCount
+							? ` · last request used ${conversationState.lastPromptTokenCount.toLocaleString()}`
+							: ''}"
 					>
-						<div class="h-1 w-10 overflow-hidden rounded-full bg-neutral-100 dark:bg-white/10">
+						<div class="h-1 w-10 overflow-hidden rounded-full bg-[var(--surface-inset)]">
 							<div
-								class="h-full rounded-full {contextUsageRatio && contextUsageRatio > 0.85 ? 'bg-red-500' : 'bg-accent'}"
+								class="h-full rounded-full {contextUsageRatio && contextUsageRatio > 0.85
+									? 'bg-red-500'
+									: 'bg-accent'}"
 								style={`width: ${Math.round((contextUsageRatio ?? 0) * 100)}%`}
 							></div>
 						</div>
-						<span class="text-[10px] text-neutral-400 dark:text-neutral-500">
-							~{estimatedTokens >= 1000 ? `${Math.round(estimatedTokens / 1000)}K` : estimatedTokens}
+						<span class="text-[10px] text-[var(--text-muted)]">
+							~{estimatedTokens >= 1000
+								? `${Math.round(estimatedTokens / 1000)}K`
+								: estimatedTokens}
 						</span>
 					</div>
 				{/if}
 			</div>
 			{#if chatMenuOpen}
 				<div
-					class="absolute top-full left-0 z-50 mt-1 max-h-72 w-64 overflow-y-auto rounded-xl bg-white p-1 shadow-lg ring-1 ring-neutral-200/70 dark:bg-neutral-800 dark:ring-white/10"
+					class="app-popover absolute top-full left-0 z-50 mt-1 max-h-72 w-64 overflow-y-auto rounded-xl p-1"
 				>
-					<button
-						type="button"
-						onclick={() => {
-							chatsState.newChat();
-							chatMenuOpen = false;
-						}}
-						class="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-sm font-medium text-accent transition-colors duration-150 hover:bg-neutral-100 dark:hover:bg-white/5"
-					>
-						<svg viewBox="0 0 24 24" class="size-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-							<path d="M12 5v14M5 12h14" />
-						</svg>
-						New chat
-					</button>
 					{#if chatsState.chats.length > 0}
-						<div class="my-1 border-t border-neutral-200 dark:border-neutral-700"></div>
 						{#each chatsState.chats as chat (chat.id)}
 							<div
-								class="flex w-full items-center gap-0.5 rounded-lg {chat.id === chatsState.activeChatId
-									? 'bg-accent/10 ring-1 ring-inset ring-accent/25 dark:bg-accent/15'
+								class="flex w-full items-center gap-0.5 rounded-lg {chat.id ===
+								chatsState.activeChatId
+									? 'bg-accent/10 ring-1 ring-accent/25 ring-inset dark:bg-accent/15'
 									: ''}"
 							>
 								<button
@@ -342,7 +396,7 @@
 										void chatsState.switchChat(chat.id);
 										chatMenuOpen = false;
 									}}
-									class="min-w-0 flex-1 truncate rounded-lg px-2.5 py-1.5 text-left text-sm text-neutral-700 transition-colors duration-150 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-white/5"
+									class="min-w-0 flex-1 truncate rounded-lg px-2.5 py-1.5 text-left text-sm text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 								>
 									{chat.title}
 								</button>
@@ -353,27 +407,38 @@
 									onclick={() => void chatsState.removeChat(chat.id)}
 									class="shrink-0 rounded-md p-1 text-neutral-400 transition-colors duration-150 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400"
 								>
-									<svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-										<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0-.6 12.2A2 2 0 0 1 14.4 21H9.6a2 2 0 0 1-2-1.8L7 7" />
+									<svg
+										viewBox="0 0 24 24"
+										class="size-3.5"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.8"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									>
+										<path
+											d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0-.6 12.2A2 2 0 0 1 14.4 21H9.6a2 2 0 0 1-2-1.8L7 7"
+										/>
 									</svg>
 								</button>
 							</div>
 						{/each}
+					{:else}
+						<p class="px-2.5 py-1.5 text-xs text-[var(--text-muted)]">
+							No saved chats yet. Send a message to save this chat for the current
+							{projectState.isOpen ? 'project' : 'file'}.
+						</p>
 					{/if}
 				</div>
 			{/if}
 		</div>
 	{:else}
-		<div
-			class="border-b border-neutral-200/70 px-3.5 py-2.5 text-xs font-medium text-neutral-500 dark:border-white/[0.06] dark:text-neutral-400"
-		>
-			Chat
-		</div>
+		<div class="app-panel-header px-3.5 py-2.5 text-xs font-medium">Chat</div>
 	{/if}
 
 	<div bind:this={scrollEl} class="flex-1 overflow-y-auto px-3.5 py-3">
 		{#if conversationState.turns.length === 0}
-			<p class="text-sm text-neutral-400 dark:text-neutral-500">
+			<p class="text-sm text-[var(--text-muted)]">
 				{nothingOpen
 					? 'Open a file or folder to start.'
 					: 'Ask a question, discuss the document, or write to it when you know what you want.'}
@@ -387,13 +452,13 @@
 	</div>
 
 	{#if attachedImages.length > 0}
-		<div class="flex flex-wrap gap-1.5 border-t border-neutral-200/70 px-2.5 py-2.5 dark:border-white/[0.06]">
+		<div class="app-panel-footer flex flex-wrap gap-1.5 px-2.5 py-2.5">
 			{#each attachedImages as image, index (index)}
 				<div class="relative">
 					<img
 						src={toDataUrl(image)}
 						alt="Attached"
-						class="size-12 rounded-md object-cover ring-1 ring-neutral-200/70 dark:ring-white/10"
+						class="size-12 rounded-md object-cover ring-1 ring-[var(--surface-ring)]"
 					/>
 					<button
 						title="Remove"
@@ -401,7 +466,14 @@
 						onclick={() => removeImage(index)}
 						class="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-neutral-700 text-white hover:bg-neutral-600 dark:bg-neutral-500 dark:hover:bg-neutral-400"
 					>
-						<svg viewBox="0 0 24 24" class="size-2.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+						<svg
+							viewBox="0 0 24 24"
+							class="size-2.5"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="3"
+							stroke-linecap="round"
+						>
 							<path d="M18 6 6 18M6 6l12 12" />
 						</svg>
 					</button>
@@ -412,7 +484,7 @@
 
 	{#if projectState.isOpen}
 		<div
-			class="relative flex flex-wrap items-center gap-1.5 border-t border-neutral-200/70 px-2.5 py-2.5 dark:border-white/[0.06]"
+			class="app-panel-footer relative flex flex-wrap items-center gap-1.5 px-2.5 py-2.5"
 			bind:this={attachFileMenuRootEl}
 		>
 			{#if documentState.path && !writeTarget}
@@ -420,7 +492,15 @@
 					title="Always included automatically — the currently active document"
 					class="flex items-center gap-1 rounded-full bg-accent/10 px-2 py-1 text-xs font-medium text-accent dark:bg-accent/15"
 				>
-					<svg viewBox="0 0 24 24" class="size-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<svg
+						viewBox="0 0 24 24"
+						class="size-3 shrink-0"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
 						<path d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
 						<path d="M14 3v4h4" />
 					</svg>
@@ -429,9 +509,17 @@
 			{/if}
 			{#each attachedFiles as file (file.path)}
 				<span
-					class="flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-1 text-xs text-neutral-600 dark:bg-white/10 dark:text-neutral-300"
+					class="flex items-center gap-1 rounded-full bg-[var(--surface-inset)] px-2 py-1 text-xs text-[var(--text-secondary)]"
 				>
-					<svg viewBox="0 0 24 24" class="size-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<svg
+						viewBox="0 0 24 24"
+						class="size-3 shrink-0"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
 						<path d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
 						<path d="M14 3v4h4" />
 					</svg>
@@ -440,9 +528,16 @@
 						title="Remove"
 						aria-label="Remove attached file {file.name}"
 						onclick={() => removeAttachedFile(file.path)}
-						class="shrink-0 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-100"
+						class="shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
 					>
-						<svg viewBox="0 0 24 24" class="size-3" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+						<svg
+							viewBox="0 0 24 24"
+							class="size-3"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2.5"
+							stroke-linecap="round"
+						>
 							<path d="M18 6 6 18M6 6l12 12" />
 						</svg>
 					</button>
@@ -453,9 +548,16 @@
 				title="Attach another file"
 				aria-label="Attach another file"
 				onclick={() => (attachFileMenuOpen = !attachFileMenuOpen)}
-				class="flex items-center gap-1 rounded-full px-2 py-1 text-xs text-neutral-500 ring-1 ring-neutral-200 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:ring-white/10 dark:hover:bg-white/[0.06]"
+				class="flex items-center gap-1 rounded-full px-2 py-1 text-xs text-[var(--text-secondary)] ring-1 ring-[var(--surface-ring)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 			>
-				<svg viewBox="0 0 24 24" class="size-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+				<svg
+					viewBox="0 0 24 24"
+					class="size-3 shrink-0"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2.5"
+					stroke-linecap="round"
+				>
 					<path d="M12 5v14M5 12h14" />
 				</svg>
 				Add file
@@ -470,14 +572,22 @@
 
 	{#if projectState.isOpen}
 		<div
-			class="relative flex items-center gap-2 border-t border-neutral-200/70 px-2.5 py-2 dark:border-white/[0.06]"
+			class="app-panel-footer relative flex items-center gap-2 px-2.5 py-2"
 			bind:this={writeMenuRootEl}
 		>
 			{#if writeTarget}
 				<span
-					class="flex items-center gap-1.5 rounded-lg bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent ring-1 ring-inset ring-accent/25 dark:bg-accent/15"
+					class="flex items-center gap-1.5 rounded-lg bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent ring-1 ring-accent/25 ring-inset dark:bg-accent/15"
 				>
-					<svg viewBox="0 0 24 24" class="size-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+					<svg
+						viewBox="0 0 24 24"
+						class="size-3.5 shrink-0"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
 						<path d="M12 20h9" />
 						<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
 					</svg>
@@ -489,7 +599,14 @@
 						onclick={() => (writeTarget = null)}
 						class="shrink-0 text-accent/70 hover:text-accent"
 					>
-						<svg viewBox="0 0 24 24" class="size-3" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+						<svg
+							viewBox="0 0 24 24"
+							class="size-3"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2.5"
+							stroke-linecap="round"
+						>
 							<path d="M18 6 6 18M6 6l12 12" />
 						</svg>
 					</button>
@@ -499,9 +616,17 @@
 					type="button"
 					disabled={sendDisabled}
 					onclick={() => (writeMenuOpen = !writeMenuOpen)}
-					class="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-neutral-600 ring-1 ring-neutral-200 transition-colors duration-150 hover:bg-neutral-900/5 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-300 dark:ring-white/10 dark:hover:bg-white/[0.06]"
+					class="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--text-secondary)] ring-1 ring-[var(--surface-ring)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
 				>
-					<svg viewBox="0 0 24 24" class="size-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+					<svg
+						viewBox="0 0 24 24"
+						class="size-3.5 shrink-0"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.8"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
 						<path d="M12 20h9" />
 						<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
 					</svg>
@@ -513,7 +638,7 @@
 	{/if}
 
 	{#if !projectState.isOpen && documentState.path}
-		<div class="flex items-center gap-2 border-t border-neutral-200/70 px-2.5 py-2 dark:border-white/[0.06]">
+		<div class="app-panel-footer flex items-center gap-2 px-2.5 py-2">
 			<button
 				type="button"
 				role="switch"
@@ -524,9 +649,17 @@
 				onclick={() => (singleFileWriteMode = !singleFileWriteMode)}
 				class="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium ring-1 transition-colors duration-150 {singleFileWriteMode
 					? 'bg-accent/10 text-accent ring-accent/25 dark:bg-accent/15'
-					: 'text-neutral-600 ring-neutral-200 hover:bg-neutral-900/5 dark:text-neutral-300 dark:ring-white/10 dark:hover:bg-white/[0.06]'}"
+					: 'text-[var(--text-secondary)] ring-[var(--surface-ring)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]'}"
 			>
-				<svg viewBox="0 0 24 24" class="size-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+				<svg
+					viewBox="0 0 24 24"
+					class="size-3.5 shrink-0"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.8"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
 					<path d="M12 20h9" />
 					<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
 				</svg>
@@ -535,7 +668,7 @@
 		</div>
 	{/if}
 
-	<div class="flex items-end gap-2 border-t border-neutral-200/70 p-2.5 dark:border-white/[0.06]">
+	<div class="app-panel-footer flex items-end gap-2 p-2.5">
 		<button
 			type="button"
 			title={sessionState.modelSupportsVision
@@ -544,9 +677,17 @@
 			aria-label="Attach an image"
 			disabled={attachImageDisabled}
 			onclick={addImages}
-			class="flex shrink-0 items-center rounded-xl p-2 text-neutral-500 transition-colors duration-150 hover:bg-neutral-900/5 disabled:cursor-not-allowed disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
+			class="flex shrink-0 items-center rounded-xl p-2 text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
 		>
-			<svg viewBox="0 0 24 24" class="size-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+			<svg
+				viewBox="0 0 24 24"
+				class="size-4.5"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.8"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			>
 				<rect x="3" y="4" width="18" height="16" rx="2" />
 				<circle cx="9" cy="10" r="1.5" fill="currentColor" stroke="none" />
 				<path d="M21 16l-5.5-5.5a2 2 0 0 0-2.8 0L4 19" />
@@ -562,7 +703,7 @@
 			placeholder={effectiveWriteTarget
 				? `What should change in ${effectiveWriteTarget.name}?`
 				: 'Message…'}
-			class="max-h-40 flex-1 resize-none overflow-hidden rounded-xl bg-transparent px-2.5 py-2 text-sm text-neutral-900 outline-none placeholder:text-neutral-400 disabled:opacity-50 dark:text-neutral-100 dark:placeholder:text-neutral-500"
+			class="max-h-40 flex-1 resize-none overflow-hidden rounded-xl bg-[var(--surface-bg)] px-2.5 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-50"
 		></textarea>
 		<button
 			title={conversationState.isGenerating ? 'Stop' : '⏎'}

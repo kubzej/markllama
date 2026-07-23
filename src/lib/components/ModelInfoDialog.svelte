@@ -35,19 +35,17 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 {#if uiState.modelInfoTarget}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-sm">
 		<div
-			class="w-full max-w-sm rounded-xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+			class="app-surface w-full max-w-sm overflow-hidden rounded-xl"
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="model-info-title"
 		>
-			<div
-				class="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-800"
-			>
+			<div class="app-panel-header flex items-center justify-between px-4 py-3">
 				<h2
 					id="model-info-title"
-					class="truncate font-mono text-sm font-semibold text-neutral-800 dark:text-neutral-200"
+					class="truncate font-mono text-sm font-semibold text-[var(--text-primary)]"
 				>
 					{uiState.modelInfoTarget}
 				</h2>
@@ -55,7 +53,7 @@
 					type="button"
 					aria-label="Close"
 					onclick={() => uiState.closeModelInfo()}
-					class="shrink-0 rounded-md p-1 text-neutral-400 transition-colors duration-150 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+					class="shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 				>
 					<svg
 						viewBox="0 0 24 24"
@@ -72,7 +70,7 @@
 
 			<div class="max-h-96 overflow-y-auto px-4 py-3">
 				{#if loading}
-					<p class="text-xs text-neutral-400 dark:text-neutral-500">Loading…</p>
+					<p class="text-xs text-[var(--text-muted)]">Loading…</p>
 				{:else if error}
 					<p class="text-xs text-red-600 dark:text-red-400">{error}</p>
 				{:else if info}
@@ -80,7 +78,7 @@
 						<div class="mb-3 flex flex-wrap gap-1.5">
 							{#each info.capabilities as capability (capability)}
 								<span
-									class="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600 dark:bg-white/5 dark:text-neutral-300"
+									class="rounded-full bg-[var(--surface-inset)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]"
 								>
 									{capability}
 								</span>
@@ -90,40 +88,38 @@
 
 					<dl class="mb-3 grid grid-cols-2 gap-2 text-xs">
 						<div>
-							<dt class="text-neutral-400 dark:text-neutral-500">Architecture</dt>
-							<dd class="font-medium text-neutral-700 dark:text-neutral-200">
+							<dt class="text-[var(--text-muted)]">Architecture</dt>
+							<dd class="font-medium text-[var(--text-primary)]">
 								{info.architecture || '—'}
 							</dd>
 						</div>
 						<div>
-							<dt class="text-neutral-400 dark:text-neutral-500">Parameters</dt>
-							<dd class="font-medium text-neutral-700 dark:text-neutral-200">
+							<dt class="text-[var(--text-muted)]">Parameters</dt>
+							<dd class="font-medium text-[var(--text-primary)]">
 								{info.parameterSize || '—'}
 							</dd>
 						</div>
 						<div>
-							<dt class="text-neutral-400 dark:text-neutral-500">Quantization</dt>
-							<dd class="font-medium text-neutral-700 dark:text-neutral-200">
+							<dt class="text-[var(--text-muted)]">Quantization</dt>
+							<dd class="font-medium text-[var(--text-primary)]">
 								{info.quantization || '—'}
 							</dd>
 						</div>
 						<div>
-							<dt class="text-neutral-400 dark:text-neutral-500">Context length</dt>
-							<dd class="font-medium text-neutral-700 dark:text-neutral-200">
+							<dt class="text-[var(--text-muted)]">Context length</dt>
+							<dd class="font-medium text-[var(--text-primary)]">
 								{info.contextLength?.toLocaleString() ?? '—'}
 							</dd>
 						</div>
 					</dl>
 
 					{#if info.parameters.length > 0}
-						<p class="mb-1 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-							Default parameters
-						</p>
+						<p class="mb-1 text-xs font-medium text-[var(--text-secondary)]">Default parameters</p>
 						<div class="space-y-0.5">
 							{#each info.parameters as param (param.key)}
 								<div class="flex justify-between gap-2 text-xs">
-									<span class="font-mono text-neutral-500 dark:text-neutral-400">{param.key}</span>
-									<span class="truncate text-neutral-700 dark:text-neutral-200">{param.value}</span>
+									<span class="font-mono text-[var(--text-secondary)]">{param.key}</span>
+									<span class="truncate text-[var(--text-primary)]">{param.value}</span>
 								</div>
 							{/each}
 						</div>

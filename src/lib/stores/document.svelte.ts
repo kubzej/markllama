@@ -18,7 +18,7 @@ function createDocumentState() {
 			return dirty;
 		},
 		get filename() {
-			return path ? path.split('/').pop() ?? path : 'Untitled';
+			return path ? (path.split('/').pop() ?? path) : 'Untitled';
 		},
 		load(newPath: string, text: string) {
 			path = newPath;

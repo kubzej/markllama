@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/license-MIT-CC5F40" alt="MIT License">
 </p>
 
-A lightweight, local-first bridge between Ollama and your Markdown files. It runs on models you already have pulled and keeps their context as small as the job needs. Built for working with Markdown with AI's help — not running an agent. Web search and thinking-model support included.
+A lightweight, local-first bridge between Ollama and your Markdown files. It runs on models you already have pulled and keeps their context as small as the job needs. Built for working with Markdown with AI's help — not running an agent. Web search and Ollama thinking-model support included.
 
 ## Requirements
 

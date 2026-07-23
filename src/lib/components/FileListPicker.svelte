@@ -22,7 +22,9 @@
 		return node.children.flatMap(flatten);
 	}
 
-	const files = $derived(flatten(projectState.tree).filter((file) => !excludePaths.includes(file.path)));
+	const files = $derived(
+		flatten(projectState.tree).filter((file) => !excludePaths.includes(file.path))
+	);
 
 	function handleWindowKeydown(event: KeyboardEvent) {
 		if (open && event.key === 'Escape') open = false;
@@ -33,10 +35,10 @@
 
 {#if open}
 	<div
-		class="absolute top-full left-0 z-50 mt-1 max-h-64 w-64 overflow-y-auto rounded-xl bg-white p-1 shadow-lg ring-1 ring-neutral-200/70 dark:bg-neutral-800 dark:ring-white/10"
+		class="app-popover absolute top-full left-0 z-50 mt-1 max-h-64 w-64 overflow-y-auto rounded-xl p-1"
 	>
 		{#if files.length === 0}
-			<p class="px-2.5 py-1.5 text-xs text-neutral-400 dark:text-neutral-500">{emptyLabel}</p>
+			<p class="px-2.5 py-1.5 text-xs text-[var(--text-muted)]">{emptyLabel}</p>
 		{:else}
 			{#each files as file (file.path)}
 				<button
@@ -45,11 +47,11 @@
 						onSelect(file);
 						open = false;
 					}}
-					class="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-sm text-neutral-700 transition-colors duration-150 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-white/5"
+					class="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-sm text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 				>
 					<svg
 						viewBox="0 0 24 24"
-						class="size-3.5 shrink-0 text-neutral-400 dark:text-neutral-500"
+						class="size-3.5 shrink-0 text-[var(--text-muted)]"
 						fill="none"
 						stroke="currentColor"
 						stroke-width="2"

@@ -58,6 +58,8 @@ export async function openDocument(): Promise<void> {
 	chatsState.clear();
 	documentState.load(opened.path, opened.content);
 	conversationState.reset();
+	await chatsState.refresh();
+	await chatsState.restoreLastActive();
 }
 
 export async function openFolder(): Promise<void> {
@@ -82,9 +84,9 @@ export async function openFolder(): Promise<void> {
 }
 
 /**
- * Switching files does NOT reset the chat — a project-scoped chat is meant to survive moving
- * between the files it discusses. It's only ever reset by starting/loading a different chat
- * (`chatsState.newChat`/`switchChat`) or by leaving project mode entirely (`openDocument`).
+ * Switching files inside a project does NOT reset the chat — a project-scoped chat is meant to
+ * survive moving between the files it discusses. Single-file mode never calls this helper; opening
+ * a different standalone file goes through `openDocument()`, which loads that file's own chats.
  */
 export async function switchActiveFile(path: string): Promise<void> {
 	if (path === documentState.path) return;

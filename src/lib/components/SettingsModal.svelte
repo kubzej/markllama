@@ -38,27 +38,22 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 {#if open}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-sm">
 		<div
-			class="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+			class="app-surface flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl"
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="settings-modal-title"
 		>
-			<div
-				class="flex items-center justify-between border-b border-neutral-200 px-5 py-4 dark:border-neutral-800"
-			>
-				<h2
-					id="settings-modal-title"
-					class="text-sm font-semibold text-neutral-800 dark:text-neutral-200"
-				>
+			<div class="app-panel-header flex items-center justify-between px-5 py-4">
+				<h2 id="settings-modal-title" class="text-sm font-semibold text-[var(--text-primary)]">
 					Settings
 				</h2>
 				<button
 					type="button"
 					aria-label="Close settings"
 					onclick={() => (open = false)}
-					class="shrink-0 rounded-md p-1 text-neutral-400 transition-colors duration-150 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+					class="shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 				>
 					<svg
 						viewBox="0 0 24 24"
@@ -74,24 +69,28 @@
 			</div>
 
 			<div class="flex-1 space-y-4 overflow-y-auto px-5 py-4">
-				<section class="rounded-lg bg-neutral-50 p-4 dark:bg-neutral-800/40">
+				<section class="rounded-lg bg-[var(--surface-muted)] p-4">
 					<label
 						for="ollama-api-key"
-						class="mb-1.5 block text-xs font-medium text-neutral-500 dark:text-neutral-400"
+						class="mb-1.5 block text-xs font-medium text-[var(--text-secondary)]"
 					>
 						Ollama Web Search API key
 					</label>
 					<input
 						id="ollama-api-key"
 						type="password"
-						class="mb-1.5 w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
-						placeholder={hasKey ? 'Configured — enter a new key to replace it' : 'Paste your API key'}
+						class="soft-input mb-1.5 w-full rounded-md px-2.5 py-1.5 text-sm outline-none"
+						placeholder={hasKey
+							? 'Configured — enter a new key to replace it'
+							: 'Paste your API key'}
 						bind:value={apiKeyInput}
 					/>
-					<p class="text-xs text-neutral-400 dark:text-neutral-500">
+					<p class="text-xs text-[var(--text-muted)]">
 						Stored in the macOS Keychain. Inference stays local — this key is only used for the
 						optional Web Search toggle.
-						<span class="font-medium">{hasKey ? 'A key is currently configured.' : 'No key configured.'}</span>
+						<span class="font-medium"
+							>{hasKey ? 'A key is currently configured.' : 'No key configured.'}</span
+						>
 					</p>
 
 					{#if saveState === 'error'}
@@ -100,7 +99,7 @@
 
 					<div class="mt-3 flex items-center justify-between">
 						<button
-							class="rounded-lg px-2.5 py-1.5 text-sm text-neutral-500 transition-colors duration-150 hover:bg-neutral-100 disabled:opacity-40 dark:text-neutral-400 dark:hover:bg-neutral-800"
+							class="rounded-lg px-2.5 py-1.5 text-sm text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)] disabled:opacity-40"
 							onclick={handleClear}
 							disabled={!hasKey || saveState === 'saving'}
 						>
@@ -122,16 +121,16 @@
 					</div>
 				</section>
 
-				<section class="rounded-lg bg-neutral-50 p-4 dark:bg-neutral-800/40">
-					<h3 class="mb-0.5 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-						Model notes
-					</h3>
-					<p class="mb-3 text-xs text-neutral-400 dark:text-neutral-500">
-						Give each model an alias and a short description of what it's good for — shown next to
-						the model name when you pick one. Saved automatically as you type.
+				<section class="rounded-lg bg-[var(--surface-muted)] p-4">
+					<h3 class="mb-0.5 text-xs font-medium text-[var(--text-secondary)]">Model notes</h3>
+					<p class="mb-3 text-xs text-[var(--text-muted)]">
+						Give each model an alias, a short description, and an optional context window override.
+						The context window controls how much of the conversation the model can see at once;
+						higher uses more memory and is slower. Leave it empty to use Ollama's default. Saved
+						automatically as you type.
 					</p>
 					{#if sessionState.models.length === 0}
-						<p class="text-xs text-neutral-400 dark:text-neutral-500">
+						<p class="text-xs text-[var(--text-muted)]">
 							No models detected yet — they'll show up here once Ollama is connected.
 						</p>
 					{:else}
@@ -144,9 +143,9 @@
 				</section>
 			</div>
 
-			<div class="flex justify-end border-t border-neutral-200 px-5 py-3 dark:border-neutral-800">
+			<div class="app-panel-footer flex justify-end px-5 py-3">
 				<button
-					class="rounded-lg px-3 py-1.5 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+					class="rounded-lg px-3 py-1.5 text-sm text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 					onclick={() => (open = false)}
 				>
 					Close

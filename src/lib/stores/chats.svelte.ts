@@ -7,13 +7,14 @@ import {
 	type ChatSummary
 } from '$lib/tauri/chats';
 import { projectState } from './project.svelte';
+import { documentState } from './document.svelte';
 import { conversationState } from './conversation.svelte';
 
 /**
- * Chat management for the currently open project — list/switch/new/delete. A chat's actual
- * message content lives in `conversationState`; this store only tracks which chat is active and
- * the lightweight summaries needed to render a switcher list. Scoped entirely to project mode —
- * single-file mode has no persisted chat at all (see `conversation.svelte.ts`'s callers).
+ * Chat management for the currently open workspace: a project folder when one is open, otherwise
+ * the one open Markdown file. A chat's actual message content lives in `conversationState`; this
+ * store only tracks which chat is active and the lightweight summaries needed to render a switcher
+ * list.
  */
 function createChatsState() {
 	let chats = $state<ChatSummary[]>([]);
@@ -21,15 +22,17 @@ function createChatsState() {
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 
+	const scopeKey = $derived(projectState.rootPath ?? documentState.path);
+
 	async function refresh() {
-		const root = projectState.rootPath;
-		if (!root) {
+		const key = scopeKey;
+		if (!key) {
 			chats = [];
 			return;
 		}
 		loading = true;
 		try {
-			chats = await listChats(root);
+			chats = await listChats(key);
 			error = null;
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
@@ -39,45 +42,45 @@ function createChatsState() {
 	}
 
 	async function switchChat(id: string): Promise<void> {
-		const root = projectState.rootPath;
-		if (!root) return;
-		const chat = await loadChat(root, id);
+		const key = scopeKey;
+		if (!key) return;
+		const chat = await loadChat(key, id);
 		activeChatId = chat.id;
 		conversationState.loadTurns(chat.turns, chat.createdAt);
-		await setLastActiveChatId(root, id);
+		await setLastActiveChatId(key, id);
 	}
 
 	function newChat(): void {
 		activeChatId = null;
 		conversationState.reset();
-		const root = projectState.rootPath;
-		if (root) void setLastActiveChatId(root, null);
+		const key = scopeKey;
+		if (key) void setLastActiveChatId(key, null);
 	}
 
 	async function removeChat(id: string): Promise<void> {
-		const root = projectState.rootPath;
-		if (!root) return;
-		await deleteChat(root, id);
+		const key = scopeKey;
+		if (!key) return;
+		await deleteChat(key, id);
 		if (activeChatId === id) {
 			newChat();
 		}
 		await refresh();
 	}
 
-	/** Called once, right after a project finishes opening — resumes whichever chat was active
-	 *  last time this project was open, if any. */
+	/** Called right after a project or file finishes opening — resumes whichever chat was active
+	 *  last time this scope was open, if any. */
 	async function restoreLastActive(): Promise<void> {
-		const root = projectState.rootPath;
-		if (!root) return;
+		const key = scopeKey;
+		if (!key) return;
 		try {
-			const lastId = await getLastActiveChatId(root);
+			const lastId = await getLastActiveChatId(key);
 			if (lastId) await switchChat(lastId);
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		}
 	}
 
-	/** Called when a project is closed — nothing about a closed project's chats should linger. */
+	/** Called when the current chat scope is closed — nothing about it should linger. */
 	function clear(): void {
 		chats = [];
 		activeChatId = null;
@@ -96,6 +99,9 @@ function createChatsState() {
 		},
 		get error() {
 			return error;
+		},
+		get scopeKey() {
+			return scopeKey;
 		},
 		refresh,
 		switchChat,

@@ -63,18 +63,14 @@
 		}
 	});
 
-	const activeSegmentClass = 'bg-white text-neutral-900 shadow-sm dark:bg-neutral-700 dark:text-white';
+	const activeSegmentClass = 'bg-[var(--control-active-bg)] text-[var(--text-primary)] shadow-sm';
 	const idleSegmentClass =
-		'text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200';
+		'text-[var(--text-muted)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]';
 </script>
 
-<div
-	class="flex h-full flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-neutral-200/70 dark:bg-neutral-900 dark:ring-white/[0.06]"
->
-	<div
-		class="flex items-center justify-end border-b border-neutral-200/70 px-2 py-1.5 dark:border-white/[0.06]"
-	>
-		<div class="flex items-center gap-0.5 rounded-lg bg-neutral-100 p-0.5 dark:bg-white/5">
+<div class="app-surface flex h-full flex-col overflow-hidden rounded-2xl">
+	<div class="app-panel-header flex items-center justify-end px-2 py-1.5">
+		<div class="flex items-center gap-0.5 rounded-lg bg-[var(--surface-inset)] p-0.5">
 			<button
 				onclick={() => (mode = 'raw')}
 				class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-150 {mode ===
@@ -99,18 +95,17 @@
 	<div class="flex-1 overflow-auto">
 		{#if noFileSelected}
 			<div
-				class="flex h-full items-center justify-center p-6 text-center text-sm text-neutral-400 dark:text-neutral-500"
+				class="flex h-full items-center justify-center p-6 text-center text-sm text-[var(--text-muted)]"
 			>
 				Select a Markdown file from the sidebar to start editing.
 			</div>
 		{:else if mode === 'raw'}
 			<div bind:this={container} class="h-full w-full"></div>
 		{:else}
-			<div class="markdown-preview p-6 text-sm text-neutral-800 dark:text-neutral-200">
+			<div class="markdown-preview p-6 text-sm text-[var(--text-primary)]">
 				<!-- eslint-disable-next-line svelte/no-at-html-tags -- previewHtml is DOMPurify-sanitized in $lib/markdown.ts, never raw source -->
 				{@html previewHtml}
 			</div>
 		{/if}
 	</div>
 </div>
-

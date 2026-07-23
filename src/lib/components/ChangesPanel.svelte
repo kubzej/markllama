@@ -51,41 +51,33 @@
 	});
 </script>
 
-<aside
-	class="flex min-h-0 flex-[2] flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-neutral-200/70 dark:bg-neutral-900 dark:ring-white/[0.06]"
->
-	<div
-		class="border-b border-neutral-200/70 px-3.5 py-2.5 text-xs font-medium text-neutral-500 dark:border-white/[0.06] dark:text-neutral-400"
-	>
-		Changes
-	</div>
+<aside class="app-surface flex min-h-0 flex-[2] flex-col overflow-hidden rounded-2xl">
+	<div class="app-panel-header px-3.5 py-2.5 text-xs font-medium">Changes</div>
 
 	<div class="flex-1 overflow-auto p-3 text-sm">
 		{#if applying}
-			<p class="text-sm text-neutral-400 dark:text-neutral-500">Saving…</p>
+			<p class="text-sm text-[var(--text-muted)]">Saving…</p>
 		{:else if applyError}
 			<p class="text-sm text-red-600 dark:text-red-400">
-				Applied, but saving to disk failed: {applyError} The change is still in the editor —
-				use Save to try again.
+				Applied, but saving to disk failed: {applyError} The change is still in the editor — use Save
+				to try again.
 			</p>
 		{:else if activeTurn?.status === 'reviewing' && activeTurn.diff}
 			<DiffView diff={activeTurn.diff} />
 		{:else if generatingLabel}
-			<div class="flex items-center gap-1.5 text-sm text-neutral-400 dark:text-neutral-500">
-				<span class="size-1.5 rounded-full bg-accent animate-pulse"></span>
+			<div class="flex items-center gap-1.5 text-sm text-[var(--text-muted)]">
+				<span class="size-1.5 animate-pulse rounded-full bg-accent"></span>
 				{generatingLabel}
 			</div>
 		{:else}
-			<p class="text-sm text-neutral-400 dark:text-neutral-500">No changes to review yet.</p>
+			<p class="text-sm text-[var(--text-muted)]">No changes to review yet.</p>
 		{/if}
 	</div>
 
 	{#if activeTurn?.status === 'reviewing'}
-		<div
-			class="flex items-center justify-end gap-2 border-t border-neutral-200/70 px-3.5 py-2.5 dark:border-white/[0.06]"
-		>
+		<div class="app-panel-footer flex items-center justify-end gap-2 px-3.5 py-2.5">
 			<button
-				class="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-400 dark:hover:bg-white/[0.06]"
+				class="rounded-lg px-2.5 py-1.5 text-sm text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 				onclick={() => conversationState.discardActive()}
 			>
 				Discard

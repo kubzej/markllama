@@ -4,13 +4,7 @@ import type { DiffLine } from './diff';
 
 export type ChatTurnMode = 'chat' | 'write';
 export type ChatTurnStatus =
-	| 'generating'
-	| 'done'
-	| 'reviewing'
-	| 'applied'
-	| 'discarded'
-	| 'error'
-	| 'cancelled';
+	'generating' | 'done' | 'reviewing' | 'applied' | 'discarded' | 'error' | 'cancelled';
 
 export interface ChatAttachedFile {
 	path: string;

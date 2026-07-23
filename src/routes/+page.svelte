@@ -13,24 +13,26 @@
 	import { uiState } from '$lib/stores/ui.svelte';
 
 	$effect(() => {
-		const title = documentState.dirty ? `${documentState.filename} — Edited` : documentState.filename;
+		const title = documentState.dirty
+			? `${documentState.filename} — Edited`
+			: documentState.filename;
 		getCurrentWindow().setTitle(`Markllama — ${title}`);
 	});
 </script>
 
-<div class="flex h-screen flex-col bg-neutral-100 dark:bg-neutral-950">
+<div class="flex h-screen flex-col bg-[var(--app-bg)] text-[var(--text-primary)]">
 	<Toolbar />
 	{#if sessionState.status === 'disconnected'}
 		<div
-			class="shrink-0 border-b border-amber-200/70 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-300"
+			class="mx-3 mt-2 shrink-0 rounded-xl bg-amber-100/80 px-3 py-1.5 text-xs text-amber-900 shadow-sm dark:bg-amber-500/12 dark:text-amber-200"
 		>
-			Ollama isn't running. Start it with <code class="font-mono">ollama serve</code> (or open the
-			Ollama app) to enable generation — you can still edit the document manually.
+			Ollama isn't running. Start it with <code class="font-mono">ollama serve</code> (or open the Ollama
+			app) to enable generation — you can still edit the document manually.
 		</div>
 	{/if}
 	{#if projectState.error && !projectState.isOpen}
 		<div
-			class="flex shrink-0 items-center justify-between gap-2 border-b border-red-200/70 bg-red-50 px-3 py-1.5 text-xs text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300"
+			class="mx-3 mt-2 flex shrink-0 items-center justify-between gap-2 rounded-xl bg-red-100/85 px-3 py-1.5 text-xs text-red-800 shadow-sm dark:bg-red-500/12 dark:text-red-200"
 		>
 			<span>Couldn't open that folder: {projectState.error}</span>
 			<button
@@ -38,7 +40,14 @@
 				onclick={() => (projectState.error = null)}
 				class="shrink-0 rounded p-0.5 hover:bg-red-900/10 dark:hover:bg-white/10"
 			>
-				<svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+				<svg
+					viewBox="0 0 24 24"
+					class="size-3.5"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+				>
 					<path d="M18 6 6 18M6 6l12 12" />
 				</svg>
 			</button>

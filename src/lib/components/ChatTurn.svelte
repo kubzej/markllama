@@ -50,7 +50,7 @@
 			<img
 				src={toDataUrl(image)}
 				alt="Attached"
-				class="size-14 rounded-lg object-cover ring-1 ring-neutral-200/70 dark:ring-white/10"
+				class="size-14 rounded-lg object-cover ring-1 ring-[var(--surface-ring)]"
 			/>
 		{/each}
 	</div>
@@ -61,8 +61,8 @@
 	</div>
 </div>
 <div class="flex flex-col gap-1.5">
-	<div class="flex items-center gap-1.5 text-xs font-medium text-neutral-400 dark:text-neutral-500">
-		<span class="min-w-0 flex-1 truncate text-neutral-500 dark:text-neutral-400">{modelLabel}</span>
+	<div class="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]">
+		<span class="min-w-0 flex-1 truncate text-[var(--text-secondary)]">{modelLabel}</span>
 		<span class="shrink-0 text-neutral-300 dark:text-neutral-600">·</span>
 		<span class={`size-1.5 shrink-0 rounded-full ${statusDotClass}`}></span>
 		<span class="shrink-0 whitespace-nowrap">{statusLabel}</span>
@@ -94,7 +94,7 @@
 			</button>
 			{#if thinkingExpanded}
 				<p
-					class="mt-1 rounded-2xl bg-neutral-100 px-3 py-2 text-sm whitespace-pre-wrap text-neutral-500 italic dark:bg-white/5 dark:text-neutral-400"
+					class="mt-1 rounded-2xl bg-[var(--surface-inset)] px-3 py-2 text-sm whitespace-pre-wrap text-[var(--text-secondary)] italic"
 				>
 					{turn.thinkingText}
 				</p>
@@ -105,7 +105,7 @@
 	{#if turn.mode === 'chat' && turn.responseText}
 		<div class="flex justify-start">
 			<div
-				class="markdown-preview max-w-[85%] rounded-2xl bg-neutral-100 px-3 py-2 text-sm text-neutral-800 dark:bg-white/5 dark:text-neutral-200"
+				class="markdown-preview max-w-[85%] rounded-2xl bg-[var(--surface-inset)] px-3 py-2 text-sm text-[var(--text-primary)]"
 			>
 				<!-- eslint-disable-next-line svelte/no-at-html-tags -- renderMarkdown sanitizes via DOMPurify, see $lib/markdown.ts -->
 				{@html renderMarkdown(turn.responseText)}

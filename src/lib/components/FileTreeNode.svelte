@@ -17,7 +17,7 @@
 		onclick={() => projectState.toggleExpanded(node.path)}
 		aria-expanded={expanded}
 		style={`padding-left: ${rowPadding}`}
-		class="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-900/5 dark:text-neutral-300 dark:hover:bg-white/[0.06]"
+		class="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 	>
 		<svg
 			viewBox="0 0 24 24"
@@ -44,9 +44,9 @@
 		onclick={() => switchActiveFile(node.path)}
 		style={`padding-left: ${rowPadding}`}
 		aria-current={active ? 'true' : undefined}
-		class="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm transition-colors duration-150 hover:bg-neutral-900/5 dark:hover:bg-white/[0.06] {active
-			? 'bg-accent/10 font-medium text-neutral-900 dark:bg-accent/15 dark:text-white'
-			: 'text-neutral-600 dark:text-neutral-300'}"
+		class="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-sm transition-colors duration-150 hover:bg-[var(--control-hover)] {active
+			? 'bg-accent/10 font-medium text-[var(--text-primary)] dark:bg-accent/15'
+			: 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
 	>
 		<svg
 			viewBox="0 0 24 24"

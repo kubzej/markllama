@@ -114,12 +114,9 @@ export async function generateChatTurn(params: GenerateChatTurnParams): Promise<
 	const unlistenChunk = await listen<GenerationEventPayload>('generation:chunk', (event) => {
 		if (event.payload.id === generationId) onChunk(event.payload.chunk);
 	});
-	const unlistenThinking = await listen<GenerationEventPayload>(
-		'generation:thinking',
-		(event) => {
-			if (event.payload.id === generationId) onThinking(event.payload.chunk);
-		}
-	);
+	const unlistenThinking = await listen<GenerationEventPayload>('generation:thinking', (event) => {
+		if (event.payload.id === generationId) onThinking(event.payload.chunk);
+	});
 	const unlistenPromptEval = await listen<PromptEvalEventPayload>(
 		'generation:promptEvalCount',
 		(event) => {

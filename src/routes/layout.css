@@ -12,8 +12,7 @@
 @theme {
 	--font-sans:
 		-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
-	--font-mono:
-		ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+	--font-mono: ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
 
 	/* Brand accent — same terracotta as the app icon. Used sparingly: primary actions
 	   (Generate, Apply), the active-toggle state, the unsaved-changes dot, and focus. */
@@ -23,17 +22,108 @@
 
 body {
 	font-family: var(--font-sans);
+	background: var(--app-bg);
 }
 
 :root {
+	--app-bg: #f1f2ef;
+	--chrome-bg: rgba(246, 247, 243, 0.86);
+	--surface-bg: #fbfaf7;
+	--surface-muted: #f3f1ec;
+	--surface-inset: #eeece6;
+	--surface-ring: rgba(40, 37, 33, 0.08);
+	--hairline: rgba(40, 37, 33, 0.08);
+	--text-primary: #24211e;
+	--text-secondary: #6c6761;
+	--text-muted: #97918a;
+	--control-hover: rgba(40, 37, 33, 0.06);
+	--control-active-bg: rgba(255, 255, 255, 0.82);
+	--popover-bg: rgba(255, 254, 251, 0.96);
+	--shadow-toolbar: 0 1px 0 var(--hairline), 0 12px 28px rgba(35, 32, 28, 0.06);
+	--shadow-panel: 0 18px 42px rgba(35, 32, 28, 0.08);
+	--shadow-popover: 0 18px 45px rgba(30, 28, 24, 0.14);
 	--editor-fg: #171717;
 	--editor-selection: rgba(0, 0, 0, 0.08);
 }
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		--editor-fg: #f5f5f5;
-		--editor-selection: rgba(255, 255, 255, 0.14);
+		--app-bg: #292725;
+		--chrome-bg: rgba(43, 40, 38, 0.9);
+		--surface-bg: #34312e;
+		--surface-muted: #3b3734;
+		--surface-inset: #2d2a28;
+		--surface-ring: rgba(255, 249, 239, 0.08);
+		--hairline: rgba(255, 249, 239, 0.07);
+		--text-primary: #f0ece6;
+		--text-secondary: #b7afa6;
+		--text-muted: #888078;
+		--control-hover: rgba(255, 249, 239, 0.07);
+		--control-active-bg: rgba(255, 249, 239, 0.11);
+		--popover-bg: rgba(58, 54, 50, 0.98);
+		--shadow-toolbar: 0 1px 0 var(--hairline), 0 12px 28px rgba(0, 0, 0, 0.18);
+		--shadow-panel: 0 18px 42px rgba(0, 0, 0, 0.22);
+		--shadow-popover: 0 18px 45px rgba(0, 0, 0, 0.34);
+		--editor-fg: #eee9e2;
+		--editor-selection: rgba(255, 249, 239, 0.14);
+	}
+}
+
+@layer components {
+	.app-surface {
+		background: var(--surface-bg);
+		border: 1px solid var(--surface-ring);
+		box-shadow: var(--shadow-panel);
+		color: var(--text-primary);
+	}
+
+	.app-panel-header {
+		background: var(--surface-muted);
+		color: var(--text-secondary);
+	}
+
+	.app-panel-footer {
+		background: var(--surface-muted);
+	}
+
+	.app-popover {
+		background: var(--popover-bg);
+		border: 1px solid var(--surface-ring);
+		box-shadow: var(--shadow-popover);
+		backdrop-filter: blur(18px);
+	}
+
+	.soft-input {
+		background: var(--surface-bg);
+		border: 1px solid var(--surface-ring);
+		color: var(--text-primary);
+	}
+
+	.soft-input:focus {
+		border-color: var(--color-accent);
+	}
+
+	.model-selector-popover {
+		width: min(30rem, calc(100vw - 1.5rem));
+		max-height: min(28rem, calc(100vh - 4rem));
+	}
+
+	.model-selector-description {
+		display: block;
+		line-height: 1.35;
+		white-space: normal;
+		overflow-wrap: anywhere;
+	}
+
+	@media (max-width: 1180px) {
+		.toolbar-collapsible-label {
+			display: none;
+		}
+
+		.toolbar-tight-button {
+			padding-left: 0.55rem;
+			padding-right: 0.55rem;
+		}
 	}
 }
 
@@ -134,4 +224,3 @@ body {
 	max-width: 100%;
 	border-radius: 8px;
 }
-

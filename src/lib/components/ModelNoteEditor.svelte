@@ -22,6 +22,19 @@
 	let debounceHandle: ReturnType<typeof setTimeout> | undefined;
 	let flashHandle: ReturnType<typeof setTimeout> | undefined;
 
+	const CONTEXT_PRESETS = [8192, 16384, 32768, 65536, 131072];
+
+	const contextPresets = $derived.by(() => {
+		const max = maxContext;
+		const values = max ? CONTEXT_PRESETS.filter((value) => value <= max) : CONTEXT_PRESETS;
+		const shouldIncludeMax = max && !values.includes(max);
+		return [
+			{ label: 'Default', value: null },
+			...values.map((value) => ({ label: formatContextValue(value), value })),
+			...(shouldIncludeMax ? [{ label: 'Max', value: max }] : [])
+		];
+	});
+
 	// Fetched lazily for the `max` bound on the num_ctx input. A failure here isn't fatal (the
 	// input just stays unbounded), but it's surfaced with a small hint rather than swallowed
 	// entirely — silently showing nothing looks identical to "this model has no known max",
@@ -37,6 +50,10 @@
 	function clampNumCtx(value: number): number {
 		const rounded = Math.max(1, Math.round(value));
 		return maxContext ? Math.min(rounded, maxContext) : rounded;
+	}
+
+	function formatContextValue(value: number): string {
+		return value % 1024 === 0 ? `${Math.round(value / 1024)}K` : value.toLocaleString();
 	}
 
 	// Debounced (not just onblur) so an edit still persists even if the modal is closed via
@@ -66,20 +83,31 @@
 		clearTimeout(debounceHandle);
 		debounceHandle = setTimeout(flush, 500);
 	}
+
+	function applyContextPreset(value: number | null) {
+		numCtx = value ?? undefined;
+		void flush();
+	}
 </script>
 
-<div class="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+<div class="rounded-lg bg-[var(--surface-bg)] p-3 ring-1 ring-[var(--surface-ring)]">
 	<div class="mb-2 flex items-center justify-between gap-2">
 		<div class="flex min-w-0 items-center gap-1">
-			<p class="truncate font-mono text-xs text-neutral-500 dark:text-neutral-400">{modelName}</p>
+			<p class="truncate font-mono text-xs text-[var(--text-secondary)]">{modelName}</p>
 			<button
 				type="button"
 				title="Model info"
 				aria-label="Model info for {modelName}"
 				onclick={() => uiState.openModelInfo(modelName)}
-				class="shrink-0 rounded-md p-1 text-neutral-400 transition-colors duration-150 hover:bg-neutral-900/5 hover:text-neutral-600 dark:hover:bg-white/[0.06] dark:hover:text-neutral-300"
+				class="shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 			>
-				<svg viewBox="0 0 24 24" class="size-3.5" fill="none" stroke="currentColor" stroke-width="1.8">
+				<svg
+					viewBox="0 0 24 24"
+					class="size-3.5"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.8"
+				>
 					<circle cx="12" cy="12" r="9" />
 					<path d="M12 11v5" stroke-linecap="round" />
 					<circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none" />
@@ -99,7 +127,7 @@
 		oninput={scheduleSave}
 		onblur={flush}
 		placeholder="Alias (optional)"
-		class="mb-2 w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+		class="soft-input mb-2 w-full rounded-md px-2.5 py-1.5 text-sm outline-none"
 	/>
 	<textarea
 		bind:value={description}
@@ -107,9 +135,9 @@
 		onblur={flush}
 		rows="2"
 		placeholder="What's it good for? (optional)"
-		class="mb-2 w-full resize-none rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+		class="soft-input mb-2 w-full resize-none rounded-md px-2.5 py-1.5 text-sm outline-none"
 	></textarea>
-	<div class="mb-1 flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500">
+	<div class="mb-1 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
 		<span>Context window (num_ctx)</span>
 		{#if maxContext}
 			<span>max {maxContext.toLocaleString()}</span>
@@ -117,18 +145,29 @@
 			<span title="Could not fetch this model's max context length from Ollama">max unknown</span>
 		{/if}
 	</div>
+	<div class="mb-2 flex flex-wrap gap-1">
+		{#each contextPresets as preset (preset.label)}
+			<button
+				type="button"
+				onclick={() => applyContextPreset(preset.value)}
+				class="rounded-md px-2 py-1 text-[11px] font-medium ring-1 transition-colors duration-150 {numCtx ===
+				(preset.value ?? undefined)
+					? 'bg-accent/10 text-accent ring-accent/25'
+					: 'text-[var(--text-secondary)] ring-[var(--surface-ring)] hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]'}"
+			>
+				{preset.label}
+			</button>
+		{/each}
+	</div>
 	<input
 		type="number"
 		min="1"
 		max={maxContext ?? undefined}
+		step="1024"
 		bind:value={numCtx}
 		oninput={scheduleSave}
 		onblur={flush}
 		placeholder="Default"
-		class="mb-1 w-full rounded-md border border-neutral-300 bg-white px-2.5 py-1.5 text-sm text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-100"
+		class="soft-input mb-1 w-full rounded-md px-2.5 py-1.5 text-sm outline-none"
 	/>
-	<p class="text-[11px] text-neutral-400 dark:text-neutral-500">
-		How much of the conversation this model can "see" at once. Higher uses more memory and is
-		slower; leave empty to use Ollama's own default.
-	</p>
 </div>

@@ -23,27 +23,22 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 {#if uiState.fileSwitchConfirmPending}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-sm">
 		<div
-			class="w-full max-w-sm rounded-xl border border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-900"
+			class="app-surface w-full max-w-sm overflow-hidden rounded-xl"
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="file-switch-title"
 		>
-			<div
-				class="flex items-center justify-between border-b border-neutral-200 px-4 py-3 dark:border-neutral-800"
-			>
-				<h2
-					id="file-switch-title"
-					class="text-sm font-semibold text-neutral-800 dark:text-neutral-200"
-				>
+			<div class="app-panel-header flex items-center justify-between px-4 py-3">
+				<h2 id="file-switch-title" class="text-sm font-semibold text-[var(--text-primary)]">
 					{documentState.dirty ? 'Unsaved changes' : 'Unreviewed suggestion'}
 				</h2>
 				<button
 					type="button"
 					aria-label="Close"
 					onclick={() => uiState.resolveFileSwitchConfirm('cancel')}
-					class="shrink-0 rounded-md p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+					class="shrink-0 rounded-md p-1 text-[var(--text-muted)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 				>
 					<svg
 						viewBox="0 0 24 24"
@@ -58,13 +53,11 @@
 				</button>
 			</div>
 			<div class="px-4 py-3">
-				<p class="text-sm text-neutral-500 dark:text-neutral-400">{message}</p>
+				<p class="text-sm text-[var(--text-secondary)]">{message}</p>
 			</div>
-			<div
-				class="flex justify-end gap-2 border-t border-neutral-200 px-4 py-3 dark:border-neutral-800"
-			>
+			<div class="app-panel-footer flex justify-end gap-2 px-4 py-3">
 				<button
-					class="rounded-lg px-2.5 py-1.5 text-sm text-neutral-600 transition-colors duration-150 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+					class="rounded-lg px-2.5 py-1.5 text-sm text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--control-hover)] hover:text-[var(--text-primary)]"
 					onclick={() => uiState.resolveFileSwitchConfirm('cancel')}
 				>
 					Cancel

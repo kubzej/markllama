@@ -2,19 +2,12 @@ import { generateChatTurn, cancelGeneration } from '$lib/tauri/ollama';
 import { diffDocuments, type DiffLine } from '$lib/tauri/diff';
 import { saveChat } from '$lib/tauri/chats';
 import type { ImageAttachment } from '$lib/images';
-import { projectState } from './project.svelte';
 import { chatsState } from './chats.svelte';
 import { attachedFilesBlock, filesToSendPerTurn, filesToSendForNewTurn } from './attachedFiles';
 
 export type TurnMode = 'chat' | 'write';
 export type TurnStatus =
-	| 'generating'
-	| 'done'
-	| 'reviewing'
-	| 'applied'
-	| 'discarded'
-	| 'error'
-	| 'cancelled';
+	'generating' | 'done' | 'reviewing' | 'applied' | 'discarded' | 'error' | 'cancelled';
 
 export interface AttachedFile {
 	path: string;
@@ -53,8 +46,8 @@ export interface ConversationTurn {
  * # Context policy — read this before touching `buildHistory`/`filesToSendForNewTurn`/`runChat`/
  * `runWrite`
  *
- * `buildHistory()` turns this store's own turns into real request history for project-scoped
- * chats. What must never happen:
+ * `buildHistory()` turns this store's own turns into real request history for the active chat
+ * scope (project folder, or the one open Markdown file). What must never happen:
  *   - A turn from *this* chat leaking into a *different* chat's request. `reset()`/`loadTurns()`
  *     fully replace `turns` — there is no shared mutable state that could let a stale turn
  *     survive a chat switch.
@@ -136,8 +129,8 @@ function createConversationState() {
 
 	async function flushSave() {
 		clearTimeout(saveHandle);
-		const root = projectState.rootPath;
-		if (!root || turns.length === 0) return;
+		const scopeKey = chatsState.scopeKey;
+		if (!scopeKey || turns.length === 0) return;
 
 		let chatId = chatsState.activeChatId;
 		if (!chatId) {
@@ -148,7 +141,7 @@ function createConversationState() {
 		const title = turns[0].instruction.slice(0, 60) || 'New chat';
 
 		try {
-			await saveChat(root, {
+			await saveChat(scopeKey, {
 				id: chatId,
 				title,
 				createdAt: chatCreatedAt,

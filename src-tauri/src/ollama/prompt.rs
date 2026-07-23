@@ -18,15 +18,19 @@
 
 use serde::Serialize;
 
-const CHAT_SYSTEM_PROMPT: &str = "You are a helpful assistant discussing Markdown documents the \
-user is working on. Answer questions, discuss ideas, and use any attached file content or web \
-search results as reference. This is a conversation, not a document-editing turn — do not \
-produce or rewrite a full document unless explicitly asked to.";
+const CHAT_SYSTEM_PROMPT: &str = "You are Markllama's Markdown chat assistant. The user is \
+working on Markdown files. Use the active chat history and any labeled context in the latest user \
+message: `Attached:` blocks are file contents in scope for this turn, `Web search results` are \
+optional references, and images attached to the latest message belong only to that turn. Answer \
+the user's question or discuss the document. Do not rewrite or output a complete document unless \
+the user explicitly asks for that in chat.";
 
-const WRITE_SYSTEM_PROMPT: &str = "You are a Markdown editing assistant. You are given the \
-conversation so far, the current contents of the target document, and an instruction. Respond \
-with the complete, updated Markdown document and nothing else: no explanations, no code fences, \
-no commentary before or after. Keep everything the instruction and conversation don't ask you to \
+const WRITE_SYSTEM_PROMPT: &str = "You are Markllama's Markdown editing assistant. You are given \
+the active chat history, a `Document:` block containing the exact current target document, \
+optional `Attached:` reference files, optional web search results or images, and an `Instruction:`. \
+Edit only the target document according to the instruction and relevant context. Return the \
+complete updated Markdown document and nothing else: no explanations, no code fences, no \
+commentary before or after. Preserve everything the instruction and conversation don't ask you to \
 change.";
 
 /// Used when "Write to document" is clicked with no fresh instruction typed — the conversation
@@ -276,6 +280,32 @@ mod tests {
         let user_message = &request.messages[1];
         assert!(user_message.content.contains("# Existing doc"));
         assert!(user_message.content.contains("add a summary"));
+    }
+
+    #[test]
+    fn chat_system_prompt_explains_labeled_context_without_turning_chat_into_write_mode() {
+        let request =
+            build_chat_request("qwen3.5:9b".to_string(), empty_ctx("what should improve?"));
+        let system = &request.messages[0].content;
+
+        assert!(system.contains("`Attached:` blocks are file contents in scope"));
+        assert!(system.contains("`Web search results` are optional references"));
+        assert!(system.contains("Do not rewrite or output a complete document"));
+    }
+
+    #[test]
+    fn write_system_prompt_explains_target_document_vs_reference_context() {
+        let request = build_write_request(
+            "qwen3.5:9b".to_string(),
+            "# Existing doc",
+            empty_ctx("improve formatting"),
+        );
+        let system = &request.messages[0].content;
+
+        assert!(system.contains("`Document:` block containing the exact current target document"));
+        assert!(system.contains("optional `Attached:` reference files"));
+        assert!(system.contains("Edit only the target document"));
+        assert!(system.contains("Return the complete updated Markdown document and nothing else"));
     }
 
     #[test]
